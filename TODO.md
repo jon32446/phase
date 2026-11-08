@@ -2,6 +2,8 @@
 
 These are optional ideas, not commitments or first-release requirements.
 
+The first working slice now includes single-day editing, explicit starts, and one-step Undo. These later ideas remain outside that slice and do not replace the remaining first-release work in PLAN.md.
+
 - [ ] Improve origin isolation, for example by hosting Phase on a dedicated origin rather than alongside other apps on `username.github.io`. Moving origins requires an explicit export/import migration because browser storage does not move with the site.
 
 - [ ] Add optional symptom logging, starting with a small, user-chosen set rather than a compulsory questionnaire.

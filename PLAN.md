@@ -61,6 +61,8 @@ Show existing values during selection. Use selection outlines or checkmarks sepa
 
 Offer a short-lived, in-memory Undo for ordinary edits. Undo is not a persistent audit history and is not available after complete deletion.
 
+Agreed first-release interaction rules: weeks start on Monday. A conflicting edit offers explicit marker removal inside its preview rather than requiring a separate correction workflow; observation changes and separately authorised marker removals commit together. Clearing a day with a recorded start requires confirmation to remove both its observation and marker. Undo restores the latest changed ordinary edit atomically, including its marker, and expires after 30 seconds, the next successful changed edit, or reload. Cancelled, failed, and unchanged edits do not replace Undo. There is no redo or persistent undo history; backup restore is outside ordinary-edit Undo.
+
 ### History and settings
 
 Use three main destinations: Calendar, History, and Settings.
@@ -126,6 +128,8 @@ Use a restrictive Content Security Policy compatible with the static/offline des
 5. Add validated backup/restore, CSV export, and complete deletion.
 6. Add offline assets, update behaviour, accessibility checks, and Pages-path validation; review README claims against actual behaviour.
 
+The first working slice implements the static shell, Monday-first calendar, date helpers, transactional single-day records, accessible day editor, start-list history, privacy/settings explanation, and one-step Undo. Unit and desktop/mobile Chromium browser tests cover this slice, including root/subpath hosting, CSP, and storage-failure handling. The database starts at schema version 1 with health records and schema metadata in separate stores; there are no earlier released schemas to migrate. Bulk editing, interval exclusions, predictions, backup/deletion, offline assets, and future migration tests remain pending. Existing records are checked before writes so stale edits or Undo cannot silently overwrite a change made elsewhere.
+
 ## Validation and tooling
 
 The only initial development dependency is project-local `@playwright/test`, pinned to `1.64.1`. Use Node's built-in test runner for pure calculations. No global npm tools or automatic operating-system dependency installation.
@@ -136,8 +140,8 @@ Configure Playwright with a local static server and synthetic data only.
 
 ### Acceptance checklist
 
-- [ ] Unknown, none, spotting, and menstrual bleeding remain distinguishable.
-- [ ] Historical single-day edits persist after reload.
+- [x] Unknown, none, spotting, and menstrual bleeding remain distinguishable.
+- [x] Historical single-day edits persist after reload.
 - [ ] Cross-month bulk edits preserve selection and commit atomically.
 - [ ] Bulk edits cannot silently create, remove, or invalidate period starts.
 - [ ] Corrections, interval exclusions, and date arithmetic produce tested cycles.
@@ -149,7 +153,7 @@ Configure Playwright with a local static server and synthetic data only.
 - [ ] Core workflows work with keyboard and touch-sized controls.
 - [ ] Browser tests detect unexpected external requests or health data in URLs.
 - [ ] Offline operation and asset updates never cache health records.
-- [ ] Root and repository-subpath hosting both work.
+- [x] Root and repository-subpath hosting both work.
 - [ ] README privacy and capability statements match the shipped application.
 
 ## Decisions to resolve before dependent implementation
@@ -157,4 +161,4 @@ Configure Playwright with a local static server and synthetic data only.
 - Import merge/replace behaviour and how users resolve conflicting dates.
 - Presentation and storage of incomplete/excluded intervals.
 - Prediction history length, weighting, estimated-window rules, and wording.
-- Detailed day-editor and bulk-preview behaviour, including marker conflicts.
+- Bulk-preview details, including per-date conflict resolution; single-day marker conflict handling and one-step Undo rules are agreed above.

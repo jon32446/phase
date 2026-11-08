@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <meta name="theme-color" content="#653859">
+  <title>Phase - Cycle diary</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./src/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="app-header">
+    <h1>Phase</h1>
+    <p>Your cycle diary, on your device.</p>
+    <nav aria-label="Main">
+      <button type="button" aria-current="page" data-page="calendar">Calendar</button>
+      <button type="button" data-page="history">History</button>
+      <button type="button" data-page="settings">Settings</button>
+    </nav>
+  </header>
+
+  <main id="main" tabindex="-1">
+    <p id="storage-error" class="error" role="alert" hidden></p>
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+    <div id="undo-bar" class="undo-bar" hidden>
+      <span id="undo-description"></span>
+      <button id="undo" type="button">Undo last edit</button>
+      <span>Available for 30 seconds, until your next edit, or until reload.</span>
+    </div>
+
+    <section id="calendar-page" aria-labelledby="month-heading">
+      <p class="notice">Record what you know; unlogged days stay unknown. Next-period estimates are not available in this version.</p>
+      <div class="month-controls">
+        <button id="previous-month" type="button" aria-label="Previous month">Previous</button>
+        <h2 id="month-heading" aria-live="polite"></h2>
+        <button id="next-month" type="button" aria-label="Next month">Next</button>
+      </div>
+      <button id="today" type="button">Today</button>
+      <div class="weekdays" aria-hidden="true">
+        <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+      </div>
+      <div id="calendar" class="calendar" role="group" aria-labelledby="month-heading"></div>
+      <p class="legend">- Unknown &middot; 0 None &middot; S Spotting &middot; L Light &middot; M Medium &middot; H Heavy &middot; * Period start</p>
+      <p>Choose any past date or today to edit. Future dates are view-only. Bulk selection is not available yet.</p>
+    </section>
+
+    <section id="history-page" aria-labelledby="history-heading" hidden>
+      <h2 id="history-heading">History</h2>
+      <p>Recorded period starts, newest first. Select a date to correct its record.</p>
+      <ul id="history"></ul>
+      <p id="empty-history">No period starts recorded.</p>
+      <p class="notice">Cycle summaries, interval exclusions, and estimates are not available yet.</p>
+    </section>
+
+    <section id="settings-page" aria-labelledby="settings-heading" hidden>
+      <h2 id="settings-heading">Settings and privacy</h2>
+      <p>Phase stores your records in this browser on this device. It has no analytics, advertising, tracking, or third-party runtime resources, and does not send your records to anyone.</p>
+      <p>Browser storage is not a backup and can be lost. Backup/restore, CSV export, and the in-app delete-all control are not implemented in this development version. You can clear this site's data using your browser settings; doing so may also delete data belonging to other apps on the same origin.</p>
+      <p>GitHub Pages receives ordinary website-request metadata. Other apps on the same origin could technically access this storage. The owner promises that other apps they publish there will not read or share your records; use a separate origin if you do not want to rely on that promise.</p>
+      <p>This is a diary, not a diagnostic tool or a method of contraception. There are no accounts or cloud sync. Offline installation is not available yet.</p>
+      <p>Do not include real health records in public issues or screenshots.</p>
+    </section>
+  </main>
+
+  <dialog id="day-editor" aria-labelledby="editor-heading" aria-describedby="editor-help">
+    <form id="day-form">
+      <h2 id="editor-heading"></h2>
+      <p id="editor-current"></p>
+      <p id="editor-help">Not recorded is different from no bleeding. Saving this day does not fill in neighbouring days.</p>
+      <label for="bleeding">Bleeding</label>
+      <select id="bleeding" name="bleeding">
+        <option value="">Choose an observation</option>
+        <option value="none">None</option>
+        <option value="spotting">Spotting</option>
+        <option value="light">Light</option>
+        <option value="medium">Medium</option>
+        <option value="heavy">Heavy</option>
+      </select>
+      <label class="checkbox-label">
+        <input id="period-start" type="checkbox" name="periodStart">
+        Period started this day
+      </label>
+      <p>A period start requires light, medium, or heavy bleeding.</p>
+      <p id="editor-error" class="error" role="alert" hidden></p>
+      <div id="marker-conflict" class="conflict" role="group" aria-labelledby="conflict-message" hidden>
+        <p id="conflict-message" role="alert"></p>
+        <button id="resolve-conflict" type="button"></button>
+        <button id="keep-editing" type="button">Keep editing</button>
+      </div>
+      <div class="editor-actions">
+        <button id="save-day" type="submit">Save</button>
+        <button id="clear-day" class="danger" type="button">Clear day's record</button>
+        <button id="cancel-editor" type="button">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>
