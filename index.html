@@ -38,12 +38,30 @@
         <button id="next-month" type="button" aria-label="Next month">Next</button>
       </div>
       <button id="today" type="button">Today</button>
+      <button id="select-days" type="button" disabled>Select days</button>
       <div class="weekdays" aria-hidden="true">
         <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
       </div>
       <div id="calendar" class="calendar" role="group" aria-labelledby="month-heading"></div>
-      <p class="legend">- Unknown &middot; 0 None &middot; S Spotting &middot; L Light &middot; M Medium &middot; H Heavy &middot; * Period start</p>
-      <p>Choose any past date or today to edit. Future dates are view-only. Bulk selection is not available yet.</p>
+      <p class="legend">- Unknown &middot; 0 None &middot; S Spotting &middot; L Light &middot; M Medium &middot; H Heavy &middot; * Period start &middot; [x] Selected</p>
+      <p>Choose any past date or today to edit. Future dates are view-only. Use Select days to edit observations across months; period starts are never created by bulk actions.</p>
+      <div id="selection-bar" class="selection-bar" role="group" aria-label="Selected days" hidden>
+        <strong id="selection-count" aria-live="polite"></strong>
+        <span>Apply a bleeding value to all selected days:</span>
+        <div class="selection-actions">
+          <button type="button" data-bulk-action="none">None</button>
+          <button type="button" data-bulk-action="spotting">Spotting</button>
+          <button type="button" data-bulk-action="light">Light</button>
+          <button type="button" data-bulk-action="medium">Medium</button>
+          <button type="button" data-bulk-action="heavy">Heavy</button>
+          <button type="button" data-bulk-action="clear" class="danger">Clear observations</button>
+          <button id="cancel-selection" type="button">Cancel selection</button>
+        </div>
+        <div id="selection-error" hidden>
+          <p id="selection-error-message" class="error" role="alert"></p>
+          <button id="refresh-records" type="button" hidden>Refresh calendar records</button>
+        </div>
+      </div>
     </section>
 
     <section id="history-page" aria-labelledby="history-heading" hidden>
@@ -93,6 +111,20 @@
         <button id="save-day" type="submit">Save</button>
         <button id="clear-day" class="danger" type="button">Clear day's record</button>
         <button id="cancel-editor" type="button">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="bulk-editor" aria-labelledby="bulk-heading" aria-describedby="bulk-help">
+    <form id="bulk-form">
+      <h2 id="bulk-heading">Resolve period-start conflicts</h2>
+      <p id="bulk-help">Only conflicting dates are listed below. Approve each period-start removal to save the whole batch, or go back to change the selection or action. No selected day changes until the entire batch saves.</p>
+      <p id="bulk-summary"></p>
+      <ul id="bulk-preview" class="bulk-preview"></ul>
+      <p id="bulk-error" class="error" role="alert" hidden></p>
+      <div class="editor-actions">
+        <button id="save-bulk" type="submit">Save batch</button>
+        <button id="cancel-bulk" type="button">Back to selection</button>
       </div>
     </form>
   </dialog>

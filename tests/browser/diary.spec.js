@@ -31,6 +31,22 @@ async function storedRecords(page) {
   });
 }
 
+async function selectDays(page, dates) {
+  await page.getByRole('button', { name: 'Select days', exact: true }).click();
+  for (const date of dates) await day(page, date).click();
+}
+
+async function previewBulk(page, action) {
+  await page.locator(`[data-bulk-action="${action}"]`).click();
+  await expect(page.locator('#bulk-editor')).toBeVisible();
+}
+
+async function applyBulk(page, action) {
+  await page.locator(`[data-bulk-action="${action}"]`).click();
+  await expect(page.locator('#status')).toHaveText(/Saved batch:|No changes to save/);
+  await expect(page.locator('#bulk-editor')).not.toBeVisible();
+}
+
 for (const path of ['/', '/phase/']) {
   test(`diary persists observations and marker corrections under ${path}`, async ({ page }) => {
     await start(page, path);
@@ -300,6 +316,12 @@ test('runtime requests contain only static assets, no health data or external re
   });
   await start(page, '/phase/');
   await edit(page, '2026-11-02', 'heavy', true);
+  await selectDays(page, ['2026-11-02', '2026-11-03']);
+  await previewBulk(page, 'spotting');
+  await page.locator('#bulk-preview input').check();
+  await page.getByRole('button', { name: 'Save batch' }).click();
+  await expect(page.locator('#bulk-editor')).not.toBeVisible();
+  await page.getByRole('button', { name: 'Undo last edit' }).click();
   await page.getByRole('button', { name: 'History', exact: true }).click();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.reload();
@@ -336,4 +358,291 @@ test('mobile/touch controls fit the viewport and editor supports a touch workflo
   } else await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(editor(page)).not.toBeVisible();
   await expect(day(page, '2026-11-02')).toHaveAccessibleName(/Light$/);
+});
+
+for (const path of ['/', '/phase/']) {
+  test(`cross-month selection applies mixed values without a modal and undoes under ${path}`, async ({ page }) => {
+    await start(page, path);
+    await edit(page, '2026-11-02', 'none');
+    await edit(page, '2026-11-03', 'medium', true);
+    await selectDays(page, ['2026-11-02', '2026-11-03']);
+    await expect(page.locator('#selection-count')).toHaveText('2 days selected');
+    await expect(day(page, '2026-11-03')).toHaveAccessibleName(/Medium, period start/);
+    await expect(day(page, '2026-11-03')).toHaveAttribute('aria-pressed', 'true');
+    await expect(day(page, '2026-11-03').locator('.day-selection')).toHaveText('x');
+    await expect(day(page, '2026-11-09')).toBeDisabled();
+    await page.getByRole('button', { name: 'Previous month' }).click();
+    await day(page, '2026-10-31').click();
+    await expect(page.locator('#selection-count')).toHaveText('3 days selected');
+    await page.getByRole('button', { name: 'Next month' }).click();
+    await expect(day(page, '2026-11-02')).toHaveAttribute('aria-pressed', 'true');
+    await expect(day(page, '2026-11-03')).toHaveAttribute('aria-pressed', 'true');
+    await applyBulk(page, 'heavy');
+    await expect(page.locator('#selection-bar')).not.toBeVisible();
+    await expect(page.getByRole('button', { name: 'Select days', exact: true })).toBeFocused();
+    expect(await storedRecords(page)).toEqual([
+      { date: '2026-10-31', bleeding: 'heavy', periodStart: false },
+      { date: '2026-11-02', bleeding: 'heavy', periodStart: false },
+      { date: '2026-11-03', bleeding: 'heavy', periodStart: true }
+    ]);
+    await page.getByRole('button', { name: 'Undo last edit' }).click();
+    await expect(page.getByRole('status')).toHaveText('Undid the batch edit to 3 days.');
+    expect(await storedRecords(page)).toEqual([
+      { date: '2026-11-02', bleeding: 'none', periodStart: false },
+      { date: '2026-11-03', bleeding: 'medium', periodStart: true }
+    ]);
+    await page.reload();
+    await expect(day(page, '2026-11-02')).toHaveAccessibleName(/None/);
+    await expect(day(page, '2026-11-03')).toHaveAccessibleName(/Medium, period start/);
+    await page.getByRole('button', { name: 'Previous month' }).click();
+    await expect(day(page, '2026-10-31')).toHaveAccessibleName(/Not recorded/);
+  });
+}
+
+for (const action of ['none', 'spotting', 'clear']) {
+  test(`bulk ${action} requires separate approval for every start and Undo restores markers`, async ({ page }) => {
+    await start(page);
+    await edit(page, '2026-11-02', 'medium', true);
+    await edit(page, '2026-11-03', 'heavy', true);
+    const before = await storedRecords(page);
+    await selectDays(page, ['2026-11-02', '2026-11-03', '2026-11-04']);
+    await previewBulk(page, action);
+    await expect(page.locator('#bulk-editor')).toHaveAccessibleName('Resolve period-start conflicts');
+    await expect(page.locator('#bulk-preview li')).toHaveCount(2);
+    await expect(page.locator('#bulk-preview li[data-date="2026-11-04"]')).toHaveCount(0);
+    await expect(page.locator('#bulk-summary')).toContainText('for 3 days. 2 period starts');
+    const approvals = page.locator('#bulk-preview input');
+    await expect(approvals).toHaveCount(2);
+    await expect(approvals.first()).toHaveAccessibleName(/Remove period start on/);
+    await expect(approvals.first()).toBeFocused();
+    await expect(page.getByRole('button', { name: 'Save batch' })).toBeDisabled();
+    await approvals.first().check();
+    await expect(page.getByRole('button', { name: 'Save batch' })).toBeDisabled();
+    expect(await storedRecords(page)).toEqual(before);
+    await page.getByRole('button', { name: 'Back to selection' }).click();
+    await expect(page.locator('#bulk-editor')).not.toBeVisible();
+    await expect(page.locator(`[data-bulk-action="${action}"]`)).toBeFocused();
+    await expect(page.locator('#selection-count')).toHaveText('3 days selected');
+    await previewBulk(page, action);
+    await expect(approvals.first()).not.toBeChecked();
+    await approvals.first().check();
+    await approvals.last().check();
+    await page.getByRole('button', { name: 'Save batch' }).click();
+    await expect(page.locator('#bulk-editor')).not.toBeVisible();
+    const after = await storedRecords(page);
+    expect(after).toEqual(action === 'clear' ? [] :
+      ['2026-11-02', '2026-11-03', '2026-11-04'].map((date) => ({
+        date, bleeding: action, periodStart: false
+      })));
+    await page.getByRole('button', { name: 'Undo last edit' }).click();
+    expect(await storedRecords(page)).toEqual(before);
+    await expect(page.getByRole('button', { name: 'Undo last edit' })).not.toBeVisible();
+  });
+}
+
+test('aborting a batch after a write rolls everything back and retains selection and previous Undo', async ({ page }) => {
+  await start(page);
+  await edit(page, '2026-11-02', 'light', true);
+  await edit(page, '2026-11-03', 'none');
+  const before = await storedRecords(page);
+  const previousUndo = await page.locator('#undo-description').textContent();
+  await selectDays(page, ['2026-11-02', '2026-11-03', '2026-11-04']);
+  await page.evaluate(() => {
+    const put = IDBObjectStore.prototype.put;
+    let writes = 0;
+    IDBObjectStore.prototype.put = function (...args) {
+      const result = put.apply(this, args);
+      if (this.name === 'days' && ++writes === 2) this.transaction.abort();
+      return result;
+    };
+  });
+  await page.locator('[data-bulk-action="heavy"]').click();
+  await expect(page.locator('#selection-error-message')).toHaveText(/not saved/);
+  await expect(page.locator('#bulk-editor')).not.toBeVisible();
+  expect(await storedRecords(page)).toEqual(before);
+  await expect(page.locator('#undo-description')).toHaveText(previousUndo);
+  await expect(page.locator('[data-bulk-action="heavy"]')).toBeEnabled();
+  await expect(page.locator('#selection-count')).toHaveText('3 days selected');
+  await expect(day(page, '2026-11-02')).toHaveAccessibleName(/Light, period start/);
+  await expect(day(page, '2026-11-04')).toHaveAccessibleName(/Not recorded/);
+  await page.getByRole('button', { name: 'Undo last edit' }).click();
+  expect(await storedRecords(page)).toEqual([
+    { date: '2026-11-02', bleeding: 'light', periodStart: true }
+  ]);
+});
+
+test('a failed batch Undo is atomic and can be retried while available', async ({ page }) => {
+  await start(page);
+  await edit(page, '2026-11-02', 'light', true);
+  await edit(page, '2026-11-03', 'none');
+  const before = await storedRecords(page);
+  await selectDays(page, ['2026-11-02', '2026-11-03']);
+  await applyBulk(page, 'heavy');
+  const after = await storedRecords(page);
+  await page.evaluate(() => {
+    const put = IDBObjectStore.prototype.put;
+    window.restorePut = () => { IDBObjectStore.prototype.put = put; };
+    let writes = 0;
+    IDBObjectStore.prototype.put = function (...args) {
+      const result = put.apply(this, args);
+      if (this.name === 'days' && ++writes === 2) this.transaction.abort();
+      return result;
+    };
+  });
+  await page.getByRole('button', { name: 'Undo last edit' }).click();
+  await expect(page.getByRole('status')).toHaveText(/not saved/);
+  expect(await storedRecords(page)).toEqual(after);
+  await expect(page.getByRole('button', { name: 'Undo last edit' })).toBeVisible();
+  await page.evaluate(() => window.restorePut());
+  await page.getByRole('button', { name: 'Undo last edit' }).click();
+  await expect(page.getByRole('status')).toHaveText(/Undid the batch/);
+  expect(await storedRecords(page)).toEqual(before);
+});
+
+test('a stale selected day prevents both partial saves and partial Undo', async ({ page }) => {
+  await start(page);
+  await edit(page, '2026-11-02', 'light');
+  await edit(page, '2026-11-03', 'medium', true);
+  await selectDays(page, ['2026-11-02', '2026-11-03']);
+  const externalEdit = (bleeding) => page.evaluate(async (value) => {
+    const { openStorage } = await import(new URL('src/storage.js', location.href));
+    const store = await openStorage();
+    await store.replaceDay('2026-11-03',
+      { date: '2026-11-03', bleeding: value, periodStart: true },
+      await store.read('2026-11-03'));
+    store.db.close();
+  }, bleeding);
+  await externalEdit('heavy');
+  await page.locator('[data-bulk-action="medium"]').click();
+  await expect(page.locator('#selection-error-message')).toHaveText(/changed elsewhere/);
+  await expect(page.locator('#bulk-editor')).not.toBeVisible();
+  await expect(day(page, '2026-11-03')).toHaveAccessibleName(/Medium, period start/);
+  expect(await storedRecords(page)).toEqual([
+    { date: '2026-11-02', bleeding: 'light', periodStart: false },
+    { date: '2026-11-03', bleeding: 'heavy', periodStart: true }
+  ]);
+  await page.getByRole('button', { name: 'Refresh calendar records' }).click();
+  await expect(page.getByRole('status')).toHaveText(/Calendar records refreshed.*Review selected days/);
+  await expect(day(page, '2026-11-03')).toHaveAccessibleName(/Heavy, period start/);
+  await expect(page.locator('#selection-count')).toHaveText('2 days selected');
+  expect(await storedRecords(page)).toEqual([
+    { date: '2026-11-02', bleeding: 'light', periodStart: false },
+    { date: '2026-11-03', bleeding: 'heavy', periodStart: true }
+  ]);
+  await applyBulk(page, 'medium');
+  await externalEdit('light');
+  await page.getByRole('button', { name: 'Undo last edit' }).click();
+  await expect(page.getByRole('status')).toHaveText(/changed elsewhere/);
+  expect(await storedRecords(page)).toEqual([
+    { date: '2026-11-02', bleeding: 'medium', periodStart: false },
+    { date: '2026-11-03', bleeding: 'light', periodStart: true }
+  ]);
+});
+
+test('unchanged batches and cancelled conflicts do not replace or extend Undo', async ({ page }) => {
+  await start(page);
+  await edit(page, '2026-11-02', 'medium', true);
+  await edit(page, '2026-11-03', 'medium', true);
+  const previousUndo = await page.locator('#undo-description').textContent();
+  await selectDays(page, ['2026-11-02', '2026-11-03']);
+  await previewBulk(page, 'none');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#bulk-editor')).not.toBeVisible();
+  await applyBulk(page, 'medium');
+  await expect(page.getByRole('status')).toHaveText('No changes to save.');
+  await expect(page.locator('#undo-description')).toHaveText(previousUndo);
+  await page.clock.fastForward(30001);
+  await expect(page.getByRole('button', { name: 'Undo last edit' })).not.toBeVisible();
+  expect(await storedRecords(page)).toHaveLength(2);
+});
+
+test('selection, conflicts, and direct saves support keyboard and touch', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await start(page);
+  await edit(page, '2026-11-02', 'medium', true);
+  await page.getByRole('button', { name: 'Select days', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: 'Cancel selection' })).toBeFocused();
+  await expect(page.locator('[data-bulk-action="light"]')).toBeDisabled();
+  await day(page, '2026-11-02').focus();
+  await page.keyboard.press('Space');
+  await expect(day(page, '2026-11-02')).toHaveAttribute('aria-pressed', 'true');
+  await expect(day(page, '2026-11-02')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(day(page, '2026-11-02')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#selection-count')).toHaveText('0 days selected');
+  if (test.info().project.name === 'mobile-chromium') await day(page, '2026-11-02').tap();
+  else await day(page, '2026-11-02').click();
+  const box = await page.locator('#selection-bar').boundingBox();
+  expect(box.y + box.height).toBeLessThanOrEqual(641);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator('[data-bulk-action="none"]').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#bulk-preview input')).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.getByRole('button', { name: 'Back to selection' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.locator('#bulk-preview input')).toBeFocused();
+  await page.keyboard.press('Space');
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Save batch' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#bulk-editor')).not.toBeVisible();
+  await expect(page.locator('[data-bulk-action="none"]')).toBeFocused();
+  await page.getByRole('button', { name: 'Cancel selection' }).click();
+  await expect(page.getByRole('button', { name: 'Select days', exact: true })).toBeFocused();
+  await selectDays(page, ['2026-11-02']);
+  if (test.info().project.name === 'mobile-chromium') await page.locator('[data-bulk-action="light"]').tap();
+  else {
+    await page.locator('[data-bulk-action="light"]').focus();
+    await page.keyboard.press('Enter');
+  }
+  await expect(page.getByRole('status')).toHaveText(/Saved batch: 1 day changed/);
+  await expect(page.locator('#bulk-editor')).not.toBeVisible();
+  await expect(page.getByRole('button', { name: 'Select days', exact: true })).toBeFocused();
+  await selectDays(page, ['2026-11-02']);
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Calendar', exact: true }).click();
+  await expect(page.locator('#selection-bar')).not.toBeVisible();
+  await expect(day(page, '2026-11-02')).not.toHaveAttribute('aria-pressed', 'true');
+  await day(page, '2026-11-02').click();
+  await expect(page.locator('#day-editor')).toBeVisible();
+  expect(await storedRecords(page)).toEqual([
+    { date: '2026-11-02', bleeding: 'light', periodStart: true }
+  ]);
+});
+
+test('clearing observations without starts saves directly and can be undone', async ({ page }) => {
+  await start(page);
+  await edit(page, '2026-11-02', 'none');
+  await edit(page, '2026-11-03', 'medium');
+  const before = await storedRecords(page);
+  await selectDays(page, ['2026-11-02', '2026-11-03', '2026-11-04']);
+  await applyBulk(page, 'clear');
+  expect(await storedRecords(page)).toEqual([]);
+  await expect(day(page, '2026-11-02')).toHaveAccessibleName(/Not recorded/);
+  await page.getByRole('button', { name: 'Undo last edit' }).click();
+  expect(await storedRecords(page)).toEqual(before);
+});
+
+test('a start added elsewhere is not silently removed by a direct action', async ({ page }) => {
+  await start(page);
+  await selectDays(page, ['2026-11-02']);
+  await page.evaluate(async () => {
+    const { openStorage } = await import(new URL('src/storage.js', location.href));
+    const store = await openStorage();
+    await store.replaceDay('2026-11-02',
+      { date: '2026-11-02', bleeding: 'medium', periodStart: true }, null);
+    store.db.close();
+  });
+  await page.locator('[data-bulk-action="spotting"]').click();
+  await expect(page.locator('#selection-error-message')).toHaveText(/changed elsewhere/);
+  await expect(page.locator('#bulk-editor')).not.toBeVisible();
+  expect(await storedRecords(page)).toEqual([
+    { date: '2026-11-02', bleeding: 'medium', periodStart: true }
+  ]);
+  await page.getByRole('button', { name: 'Refresh calendar records' }).click();
+  await expect(day(page, '2026-11-02')).toHaveAccessibleName(/Medium, period start/);
+  await previewBulk(page, 'spotting');
+  await expect(page.getByRole('button', { name: 'Save batch' })).toBeDisabled();
 });

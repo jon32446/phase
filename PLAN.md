@@ -57,7 +57,9 @@ Provide an explicit "Select days" mode rather than requiring hidden gestures. Us
 
 A sticky selection bar shows the selection count, bleeding-value actions, a clear-observations action, and Cancel. Bulk actions affect bleeding observations, not period-start markers. If a change conflicts with an existing start marker, the user must resolve it explicitly before the batch commits.
 
-Show existing values during selection. Use selection outlines or checkmarks separately from the symbols/colours representing bleeding. Preview overwrites, including mixed existing values, and commit each batch atomically.
+Show existing values during selection, including mixed observations and unknown days. Use selection outlines or checkmarks separately from the symbols/colours representing bleeding. Apply conflict-free actions directly, including clear observations, and commit each batch atomically.
+
+Agreed bulk-interaction rules: the calendar is the review surface for conflict-free edits; do not open an unconditional preview modal. Only period-start conflicts open a prompt, showing affected dates with before/after values sorted by date. Require a separate unchecked-by-default approval for every conflicting start removal before enabling Save batch for the entire selection. Back to selection or Escape closes the prompt without saving and retains the selection; reopening resets removal approvals. Successful saves, including unchanged batches, exit selection mode and clear selection. Cancel selection or leaving Calendar also clears it. Failed saves retain the selection and any open conflict prompt. Check every selected record against its displayed snapshot inside the write transaction; stale-record failures offer an explicit calendar refresh, retaining selection without automatically retrying the action.
 
 Offer a short-lived, in-memory Undo for ordinary edits. Undo is not a persistent audit history and is not available after complete deletion.
 
@@ -128,7 +130,7 @@ Use a restrictive Content Security Policy compatible with the static/offline des
 5. Add validated backup/restore, CSV export, and complete deletion.
 6. Add offline assets, update behaviour, accessibility checks, and Pages-path validation; review README claims against actual behaviour.
 
-The first working slice implements the static shell, Monday-first calendar, date helpers, transactional single-day records, accessible day editor, start-list history, privacy/settings explanation, and one-step Undo. Unit and desktop/mobile Chromium browser tests cover this slice, including root/subpath hosting, CSP, and storage-failure handling. The database starts at schema version 1 with health records and schema metadata in separate stores; there are no earlier released schemas to migrate. Bulk editing, interval exclusions, predictions, backup/deletion, offline assets, and future migration tests remain pending. Existing records are checked before writes so stale edits or Undo cannot silently overwrite a change made elsewhere.
+The first working slice implements the static shell, Monday-first calendar, date helpers, transactional single-day records, accessible day editor, start-list history, privacy/settings explanation, and one-step Undo. The second slice adds cross-month bulk selection, a sticky action bar, direct conflict-free actions, conflict-only before/after prompts with individual marker-removal approvals, and atomic batch saves and Undo. Unit and desktop/mobile Chromium browser tests cover both slices, including root/subpath hosting, CSP, keyboard/touch access, and storage-failure handling. The database remains at schema version 1 with health records and schema metadata in separate stores; this slice requires no schema migration. Interval exclusions, predictions, backup/deletion, offline assets, and future migration tests remain pending. All selected records are checked within the write transaction before any batch writes so stale edits or Undo cannot silently overwrite a change made elsewhere. Undo retains only actually changed records, not unchanged selected dates.
 
 ## Validation and tooling
 
@@ -142,8 +144,8 @@ Configure Playwright with a local static server and synthetic data only.
 
 - [x] Unknown, none, spotting, and menstrual bleeding remain distinguishable.
 - [x] Historical single-day edits persist after reload.
-- [ ] Cross-month bulk edits preserve selection and commit atomically.
-- [ ] Bulk edits cannot silently create, remove, or invalidate period starts.
+- [x] Cross-month bulk edits preserve selection and commit atomically.
+- [x] Bulk edits cannot silently create, remove, or invalidate period starts.
 - [ ] Corrections, interval exclusions, and date arithmetic produce tested cycles.
 - [ ] Estimates handle insufficient, incomplete, and variable history honestly.
 - [ ] JSON export/restore round-trips the supported user data.
@@ -161,4 +163,3 @@ Configure Playwright with a local static server and synthetic data only.
 - Import merge/replace behaviour and how users resolve conflicting dates.
 - Presentation and storage of incomplete/excluded intervals.
 - Prediction history length, weighting, estimated-window rules, and wording.
-- Bulk-preview details, including per-date conflict resolution; single-day marker conflict handling and one-step Undo rules are agreed above.

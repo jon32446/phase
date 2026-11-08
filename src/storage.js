@@ -78,42 +78,63 @@ class DiaryStorage {
   }
 
   replaceDay(date, next, expected) {
-    parseDate(date);
-    if (date > localToday()) throw new RangeError('Future dates are view-only.');
-    const record = next === null ? null : validateRecord(next);
-    if (record && record.date !== date) throw new TypeError('Record date does not match the edited day.');
+    return this.replaceDays([{ date, next, expected }]).then((changes) => changes[0]);
+  }
+
+  replaceDays(edits) {
+    const dates = new Set();
+    const today = localToday();
+    const changes = edits.map(({ date, next, expected }) => {
+      parseDate(date);
+      if (date > today) throw new RangeError('Future dates are view-only.');
+      if (dates.has(date)) throw new TypeError('A batch cannot edit the same day twice.');
+      dates.add(date);
+      const record = next === null ? null : validateRecord(next);
+      const previous = expected === null ? null : validateRecord(expected);
+      if ((record && record.date !== date) || (previous && previous.date !== date)) {
+        throw new TypeError('Record date does not match the edited day.');
+      }
+      return { date, previous, next: record, changed: !sameRecord(previous, record) };
+    });
+    if (changes.length === 0) return Promise.resolve([]);
     return new Promise((resolve, reject) => {
       let transaction;
-      let previous;
       let failure;
       try {
         transaction = this.db.transaction('days', 'readwrite');
         const store = transaction.objectStore('days');
-        const request = store.get(date);
-        request.onsuccess = () => {
-          previous = request.result ?? null;
-          if (!sameRecord(previous, expected)) {
-            failure = new Error('This day changed elsewhere. Cancel and reopen it to review the latest record before editing.');
-            transaction.abort();
-            return;
-          }
-          try {
-            if (!sameRecord(previous, record)) {
-              if (record) store.put(record);
-              else store.delete(date);
+        let remaining = changes.length;
+        for (const change of changes) {
+          const request = store.get(change.date);
+          request.onsuccess = () => {
+            if (!sameRecord(request.result ?? null, change.previous)) {
+              failure = Object.assign(
+                new Error('A day changed elsewhere. Refresh the calendar records, or cancel and reopen the day editor to review the latest records before editing.'),
+                { code: 'STALE_RECORD' }
+              );
+              transaction.abort();
+              return;
             }
-          } catch (error) {
-            failure = storageError(error);
-            transaction.abort();
-          }
-        };
+            remaining--;
+            if (remaining !== 0) return;
+            try {
+              for (const item of changes) {
+                if (!item.changed) continue;
+                if (item.next) store.put(item.next);
+                else store.delete(item.date);
+              }
+            } catch (error) {
+              failure = storageError(error);
+              transaction.abort();
+            }
+          };
+        }
       } catch (error) {
+        if (transaction) transaction.abort();
         reject(storageError(error));
         return;
       }
-      transaction.oncomplete = () => resolve({
-        date, previous, next: record, changed: !sameRecord(previous, record)
-      });
+      transaction.oncomplete = () => resolve(changes);
       transaction.onabort = () => reject(failure ?? storageError(transaction.error));
     });
   }
