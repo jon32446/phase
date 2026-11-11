@@ -63,7 +63,7 @@ Agreed bulk-interaction rules: the calendar is the review surface for conflict-f
 
 Offer a short-lived, in-memory Undo for ordinary edits. Undo is not a persistent audit history and is not available after complete deletion.
 
-Agreed first-release interaction rules: weeks start on Monday. A conflicting edit offers explicit marker removal inside its preview rather than requiring a separate correction workflow; observation changes and separately authorised marker removals commit together. Clearing a day with a recorded start requires confirmation to remove both its observation and marker. Undo restores the latest changed ordinary edit atomically, including its marker, and expires after 30 seconds, the next successful changed edit, or reload. Cancelled, failed, and unchanged edits do not replace Undo. There is no redo or persistent undo history; backup restore is outside ordinary-edit Undo.
+Agreed first-release interaction rules: weeks start on Monday. A conflicting edit offers explicit marker removal inside its preview rather than requiring a separate correction workflow; observation changes and separately authorised marker removals commit together. Clearing a day with a recorded start requires confirmation to remove both its observation and marker. Undo restores the latest changed ordinary edit atomically, including its marker, and expires after 30 seconds, the next successful changed edit, or reload. Undo retains only actually changed dates, not unchanged selections. Cancelled, failed, and unchanged edits do not replace Undo. There is no redo or persistent undo history; backup restore is outside ordinary-edit Undo.
 
 ### History and settings
 
@@ -123,22 +123,20 @@ Use a restrictive Content Security Policy compatible with the static/offline des
 
 ## Implementation sequence
 
-1. Settle open interaction/data rules; add the static shell, date helpers, and approved local test setup.
+1. Settle diary interaction/data rules; add the static shell, date helpers, and local test setup.
 2. Implement transactional storage, single-day editing, and historical records.
 3. Add cross-month bulk editing, conflict handling, and in-memory Undo.
 4. Add history, interval exclusions, and the tested prediction baseline.
 5. Add validated backup/restore, CSV export, and complete deletion.
 6. Add offline assets, update behaviour, accessibility checks, and Pages-path validation; review README claims against actual behaviour.
 
-The first working slice implements the static shell, Monday-first calendar, date helpers, transactional single-day records, accessible day editor, start-list history, privacy/settings explanation, and one-step Undo. The second slice adds cross-month bulk selection, a sticky action bar, direct conflict-free actions, conflict-only before/after prompts with individual marker-removal approvals, and atomic batch saves and Undo. Unit and desktop/mobile Chromium browser tests cover both slices, including root/subpath hosting, CSP, keyboard/touch access, and storage-failure handling. The database remains at schema version 1 with health records and schema metadata in separate stores; this slice requires no schema migration. Interval exclusions, predictions, backup/deletion, offline assets, and future migration tests remain pending. All selected records are checked within the write transaction before any batch writes so stale edits or Undo cannot silently overwrite a change made elsewhere. Undo retains only actually changed records, not unchanged selected dates.
+Steps 1-3 are implemented. Step 4 is next: the start list exists, but cycle summaries, interval exclusions, and predictions remain pending. Steps 5-6 remain pending, with root/subpath hosting and CSP checks already in place. The acceptance checklist below tracks release-wide completion.
 
 ## Validation and tooling
 
-The only initial development dependency is project-local `@playwright/test`, pinned to `1.64.1`. Use Node's built-in test runner for pure calculations. No global npm tools or automatic operating-system dependency installation.
+Use project-local Playwright for browser tests and Node's built-in test runner for pure calculations. Dependency versions belong in the package manifest and lockfile; portable setup and test commands are documented in README.md.
 
-Discuss additional package/browser/system installations before doing them. The initial WSL assessment found cached Chromium revision `1248`; after the user installed `libnspr4`, `libnss3`, and `libasound2t64`, linker checks reported no unresolved shared libraries. A smoke test with the project-local dependency successfully launched cached headless Chromium, loaded HTML, and checked DOM content. No additional browser downloads or system packages were needed.
-
-Configure Playwright with a local static server and synthetic data only.
+Run browser tests against a local static server at both the root and a repository subpath, using synthetic data only. Initial browser targets are desktop Chromium and mobile Chromium emulation; these do not establish real-device or cross-browser coverage.
 
 ### Acceptance checklist
 
