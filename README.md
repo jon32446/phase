@@ -8,7 +8,9 @@ Record and correct your history without accounts, data harvesting or cloud sync.
 
 The diary supports a mobile-first monthly calendar, historical single-day and cross-month bulk editing, explicit period starts, browser-local storage, and a short-lived Undo for the last edit or batch. History lists recorded starts for correction.
 
-Cycle summaries, interval exclusions, next-period estimates, import/export, in-app complete deletion, and offline/PWA support are not implemented yet. **Do not rely on this development version as your only record:** browser storage can be lost, and backup export is not available.
+Cycle summaries, start-history completeness check-ins, next-period estimates, import/export, in-app complete deletion, and offline/PWA support are not implemented yet. **Do not rely on this development version as your only record:** browser storage can be lost, and backup export is not available.
+
+The planned history model separates daily bleeding observations from whether all period starts are recorded. It does not require daily logging: an unrecorded day is not an observation of "none", and a long interval is not automatically invalid. Planned check-ins will let users clarify potentially missing starts without inventing dates or reconstructing every day's bleeding. Prompting and prediction rules are still being designed.
 
 [PLAN.md](PLAN.md) defines first-release behaviour, remaining decisions, and acceptance criteria. [TODO.md](TODO.md) lists optional later ideas, not release requirements.
 

@@ -32,7 +32,7 @@ The implemented slices now include single-day editing, cross-month bulk editing 
 
 - [ ] Consider CSV import if there is a concrete interoperability need. Define format mapping, validation, and date/conflict handling first.
 
-- [ ] Support additional context for excluding intervals, such as explicitly recorded contraception changes or postpartum recovery, without inferring sensitive circumstances from bleeding patterns.
+- [ ] Consider optional context for interpreting cycle history, such as explicitly recorded contraception changes or postpartum recovery, without inferring sensitive circumstances from bleeding patterns. This is separate from the first-release check-ins about whether period starts are missing; it does not establish a general interval-exclusion policy.
 
 - [ ] Consider optional cervical mucus, BBT, and LH observations as a separate project phase. Observation logging and physiological inference are different features; neither should turn calendar estimates into contraception guidance.
 

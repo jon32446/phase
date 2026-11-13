@@ -13,20 +13,22 @@ The first release is a diary with cautious estimates, not a fertility engine. Us
 - IndexedDB storage of mutable records.
 - Daily bleeding observations and explicitly recorded period starts.
 - Single-day editing and calendar-based bulk editing.
-- History, basic cycle summaries, and next-period estimated ranges.
+- History, start-history completeness check-ins, basic cycle summaries, and next-period estimated ranges.
 - Unencrypted JSON backup/restore, CSV export, and complete data deletion.
 - An installable offline application shell that caches static assets only.
 - Focused unit tests and Playwright browser tests.
 - MIT license with Jon as the copyright holder.
 
-Symptoms, ovulation/fertility inference, clinical alerts, accounts, sync, encryption, and reminders are outside the first release.
+Symptoms, ovulation/fertility inference, clinical alerts, accounts, sync, encryption, and scheduled reminders are outside the first release. In-app history check-ins clarify potentially missing records; they are not medical alerts or scheduled reminders.
 
 ## Invariants
 
-- An unlogged day is unknown, not an observation of no bleeding.
+- An unlogged day means "Not recorded", not an observation of no bleeding. No separate daily state is required to distinguish not yet entered from forgotten.
 - Logging a date does not populate adjacent dates.
 - Bleeding intensity does not automatically establish a period start.
-- Every historical observation and period-start marker can be corrected or removed.
+- Daily observation completeness and period-start history completeness are separate; sparse daily logging does not itself make start history unusable.
+- A long interval is not automatically invalid and never establishes that a period start was missed.
+- Every historical observation, period-start marker, and start-history completeness statement can be corrected or removed.
 - No append-only health history or retained superseded observations.
 - Estimates are distinct from observations and never become recorded facts.
 - Health records never appear in network requests, URLs, application caches, telemetry, or public test fixtures.
@@ -71,6 +73,12 @@ Use three main destinations: Calendar, History, and Settings.
 
 History shows period starts, completed intervals, and basic summaries. Make corrections reachable without asking users to reconstruct their history.
 
+Provide neutral, dismissible check-ins where a gap in recorded starts may conceal missing history, both between historical starts and since the latest start. Do not require daily logging or filling intervening days with "none" to establish usable start history. Check-ins must not block ordinary logging or label a long interval abnormal.
+
+A check-in identifies the span being reviewed and lets the user confirm that all starts in that span are recorded, add remembered missing starts, report that one or more starts are missing but their dates are forgotten, or leave completeness unresolved because they are unsure. For a span since the latest start, confirming completeness means no further period has occurred through the reviewed date. Preserve daily observations unchanged unless the user explicitly edits them.
+
+Remember answers so the same answered span does not repeatedly prompt. A confirmation ends at the reviewed date; it does not establish completeness indefinitely. An unsure answer does not establish completeness, and dismissal is not confirmation. Prompt placement, repeat behaviour after uncertainty or dismissal, and detection rules remain to be designed.
+
 Settings provides import/export, the privacy explanation, and a prominent red "Delete all data" action. Require explicit confirmation explaining that deletion cannot be undone. Delete all saved user data, clear in-memory state, and leave no health-record recovery copy.
 
 ### Accessibility
@@ -81,7 +89,7 @@ All interactions must work with touch, mouse, and keyboard. Dates and values nee
 
 ### Mutable storage
 
-Use date-keyed daily records and explicit period-start markers, stored with transactional consistency. Keep metadata and schema versions separate from health observations. Do not introduce a general event-sourcing framework.
+Use date-keyed daily records and explicit period-start markers, stored with transactional consistency. Store user statements about start-history completeness separately from daily bleeding observations; these statements are user health data, not merely application metadata. Keep application metadata and schema versions separate from health observations. Do not introduce a general event-sourcing framework.
 
 Use date-only values such as `YYYY-MM-DD` for observations. Recording timestamps, if needed, are separate metadata. Calculate calendar-day differences without dividing local-midnight elapsed milliseconds by 24 hours.
 
@@ -89,23 +97,35 @@ Derive cycles and estimates from the current records rather than persisting deri
 
 ### Usable history
 
-Cycle length is the interval between consecutive recorded menstrual starts. Missing starts can make that interval misleading; daily logging must not be required to establish a usable start history.
+An observed start-to-start interval is the calendar-day difference between consecutive recorded menstrual starts. It represents a cycle length only insofar as the recorded starts are complete for that span. Missing starts can make that interval misleading; daily logging must not be required to establish a usable start history.
 
-Provide a way to mark an interval as incomplete or excluded from estimates. Do not silently treat a long interval as multiple cycles or infer missed starts. Bleeding duration summaries must disclose incomplete daily observations.
+Keep daily observation coverage distinct from start-history completeness. "Not recorded" means the app has no daily observation, whether the user remembers that day or not. Neither gaps nor complete daily bleeding observations prove that every period start was recorded. Do not require users to paint forgotten days as unknown or known intervening days as "none" to unlock cycle information.
+
+Record meaningful user statements about reviewed spans rather than a generic "exclude from calculations" flag: all starts are recorded through the reviewed date, or one or more starts are known to be missing within the span but cannot be dated. If dates are remembered, add the actual starts instead. Uncertainty leaves completeness unresolved.
+
+Recalculate intervals and summaries from current records whenever starts are added, corrected, or removed. For example, adding a remembered start between two existing starts replaces the old interval with the two newly derived intervals; no inferred start or saved cycle object is needed. The representation of reviewed spans and how later corrections affect their statements remain to be agreed; do not silently transfer an old statement to different history.
+
+Distinguish provisionally usable intervals with no evidence of missing starts, potentially incomplete spans awaiting review, confirmed missing-start spans, and confirmed complete spans. Do not use an interval known to contain missing starts as a single cycle in usable-cycle summaries or estimates. Retain the actual length of a confirmed complete interval even when unusually long; confirmation is not permission to silently discard it. Whether to withhold estimates while a potentially incomplete span is unresolved remains an open policy decision.
+
+Detect possible missing history to ask a question, not to establish that a period must have occurred. Consider both historical intervals and the open span since the latest start. Detection may use the person's recorded cycle lengths when enough history exists, but needs a transparent fallback when history is limited. Exact triggers remain open; no fixed example duration is an approved threshold or a medical cutoff. Do not infer the number or dates of missed starts.
+
+Bleeding duration summaries must disclose incomplete daily observations independently of start-history completeness.
 
 ### Prediction baseline
 
 Keep cycle derivation and prediction in pure, versioned modules.
 
-Use a median-based baseline over recent usable completed intervals. Show an estimated range, not a confidence percentage or a single guaranteed date. Do not estimate with fewer than two usable completed intervals. Explain limited history and withheld estimates in plain language.
+Show an estimated range, not a confidence percentage or a single guaranteed date. Explain limited history, potentially missing starts, and withheld estimates in plain language. Define the history-review experience before settling detection and prediction rules together.
 
-Exact recency weighting, history length, range width, and widening rules remain to be agreed and tested. MAD-based formulas are engineering heuristics, not validated individual confidence guarantees.
+A median-based baseline over recent usable completed intervals is a candidate, not a settled formula. Minimum usable history, recency weighting, history length, range width, widening rules, and treatment of unresolved spans remain to be agreed and tested. MAD-based formulas are engineering heuristics, not validated individual confidence guarantees.
 
 Start with descriptive summaries of usable cycle lengths and their range. Historical prediction-error reporting is deferred until it has a defined, honest measurement method.
 
 ## Import, export, and recovery
 
 JSON is the versioned, readable backup/restore format. CSV is a readable export, not the initial restore format. Neither format is encrypted.
+
+JSON backup/restore must preserve user statements about start-history completeness as well as daily records and start markers. Complete deletion must remove those statements too.
 
 Validate imports before committing anything, show a preview, reject unsupported schemas with an explanation, and preserve existing data on failure. Treat imported content as data, never HTML or executable code.
 
@@ -126,11 +146,11 @@ Use a restrictive Content Security Policy compatible with the static/offline des
 1. Settle diary interaction/data rules; add the static shell, date helpers, and local test setup.
 2. Implement transactional storage, single-day editing, and historical records.
 3. Add cross-month bulk editing, conflict handling, and in-memory Undo.
-4. Add history, interval exclusions, and the tested prediction baseline.
+4. Design history check-ins and reviewed-span semantics; add derived cycle history and start-history completeness handling, then agree and implement tested missing-history detection and prediction rules.
 5. Add validated backup/restore, CSV export, and complete deletion.
 6. Add offline assets, update behaviour, accessibility checks, and Pages-path validation; review README claims against actual behaviour.
 
-Steps 1-3 are implemented. Step 4 is next: the start list exists, but cycle summaries, interval exclusions, and predictions remain pending. Steps 5-6 remain pending, with root/subpath hosting and CSP checks already in place. The acceptance checklist below tracks release-wide completion.
+Steps 1-3 are implemented. Step 4 is next: the start list exists, but cycle summaries, start-history completeness check-ins, missing-history detection, and predictions remain pending. Steps 5-6 remain pending, with root/subpath hosting and CSP checks already in place. The acceptance checklist below tracks release-wide completion.
 
 ## Validation and tooling
 
@@ -144,7 +164,11 @@ Run browser tests against a local static server at both the root and a repositor
 - [x] Historical single-day edits persist after reload.
 - [x] Cross-month bulk edits preserve selection and commit atomically.
 - [x] Bulk edits cannot silently create, remove, or invalidate period starts.
-- [ ] Corrections, interval exclusions, and date arithmetic produce tested cycles.
+- [ ] Corrections and date arithmetic recalculate tested intervals without inventing starts or retaining obsolete derived cycles.
+- [ ] Sparse daily observations do not by themselves disqualify period-start history.
+- [ ] History check-ins distinguish confirmed complete, known missing, and unresolved start history without changing daily observations or repeatedly questioning an answered span.
+- [ ] Known missing-start intervals are not treated as single usable cycles; confirmed long intervals retain their actual length.
+- [ ] Reviewed-span corrections and persistence follow agreed, tested rules.
 - [ ] Estimates handle insufficient, incomplete, and variable history honestly.
 - [ ] JSON export/restore round-trips the supported user data.
 - [ ] Invalid imports and failed saves leave existing data intact.
@@ -159,5 +183,8 @@ Run browser tests against a local static server at both the root and a repositor
 ## Decisions to resolve before dependent implementation
 
 - Import merge/replace behaviour and how users resolve conflicting dates.
-- Presentation and storage of incomplete/excluded intervals.
-- Prediction history length, weighting, estimated-window rules, and wording.
+- History check-in placement, wording, and repeat behaviour after uncertainty or dismissal.
+- Representation and boundaries of reviewed spans, overlapping answers, and how start corrections and Undo affect them.
+- Missing-history detection triggers, sufficient personal history, and limited-history fallback.
+- Whether potentially incomplete spans awaiting review withhold estimates, and how uncertainty appears in summaries.
+- Prediction baseline, minimum usable history, history length, weighting, estimated-window rules, and wording.
