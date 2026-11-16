@@ -73,12 +73,21 @@ for (const path of ['/', '/phase/']) {
     for (const request of requests) {
       const url = new URL(request.url);
       expect(url.origin).toBe(new URL(baseURL).origin);
-      expect(url.pathname).toMatch(/^\/(?:phase\/)?(?:index\.html|styles\.css|src\/(?:app|dates|records|storage|history|predictions|backup)\.js)?$/);
+      expect(url.pathname).toMatch(/^\/(?:phase\/)?(?:index\.html|styles\.css|sw\.js|manifest\.webmanifest|icon\.svg|src\/(?:app|offline|dates|records|storage|history|predictions|backup)\.js)?$/);
       expect(url.search).toBe('');
       expect(url.hash).toBe('');
       expect(request.data).toBeNull();
     }
-    expect(await page.evaluate(() => caches.keys())).toEqual([]);
+    await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+    const cachedURLs = await page.evaluate(async () => {
+      const entries = await Promise.all((await caches.keys()).map(async (name) =>
+        (await (await caches.open(name)).keys()).map((request) => request.url)));
+      return entries.flat();
+    });
+    expect(cachedURLs).toHaveLength(13);
+    for (const url of cachedURLs) {
+      expect(url).toMatch(/\/(?:phase\/)?(?:index\.html|styles\.css|manifest\.webmanifest|icon\.svg|src\/(?:app|offline|dates|records|storage|history|predictions|backup)\.js)?$/);
+    }
   });
 }
 

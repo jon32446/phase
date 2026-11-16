@@ -7,6 +7,8 @@
   <meta name="theme-color" content="#653859">
   <title>Phase - Cycle diary</title>
   <link rel="stylesheet" href="./styles.css">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
   <script type="module" src="./src/app.js"></script>
 </head>
 <body>
@@ -24,6 +26,11 @@
   <main id="main" tabindex="-1">
     <p id="storage-error" class="error" role="alert" hidden></p>
     <p id="status" class="status" role="status" aria-live="polite"></p>
+    <div id="update-notice" class="notice" aria-live="polite" hidden>
+      <p>Update ready. Restart to use the new version. Your saved diary stays intact, but session Undo will be cleared. Other open Phase windows will not restart.</p>
+      <p>Finish or cancel any editor, selected days, or restore/deletion preview before restarting.</p>
+      <button id="restart-update" type="button" disabled>Restart to update</button>
+    </div>
     <div id="undo-bar" class="undo-bar" hidden>
       <span id="undo-description"></span>
       <button id="undo" type="button">Undo last edit</button>
@@ -110,7 +117,11 @@
       <button id="delete-data" class="danger" type="button" disabled>Delete all data</button>
       <p id="settings-error" class="error" role="alert" hidden></p>
       <p>GitHub Pages receives ordinary website-request metadata. Other apps on the same origin could technically access this storage. The owner promises that other apps they publish there will not read or share your records; use a separate origin if you do not want to rely on that promise.</p>
-      <p>This is a diary, not a diagnostic tool or a method of contraception. There are no accounts or cloud sync. Offline installation is not available yet.</p>
+      <h3>Offline use and updates</h3>
+      <p id="offline-status" aria-live="polite">Preparing offline use...</p>
+      <p>Where supported, use your browser's Install or Add to Home Screen action to open Phase as an app. Offline use needs a successful first online visit; only application files are cached, never your diary or exports.</p>
+      <p>Phase checks for updates when opened and when you return to it. An update waits for you to choose Restart to update; minimizing the app does not apply it. Restart clears session Undo but keeps saved records. Other open windows are not automatically restarted.</p>
+      <p>This is a diary, not a diagnostic tool or a method of contraception. There are no accounts or cloud sync.</p>
       <p>Do not include real health records in public issues or screenshots.</p>
     </section>
   </main>

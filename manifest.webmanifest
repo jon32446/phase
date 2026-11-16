@@ -1,0 +1,14 @@
+{
+  "id": "./",
+  "name": "Phase - Cycle diary",
+  "short_name": "Phase",
+  "description": "A local-only, user-controlled menstrual cycle diary.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#faf8fb",
+  "theme_color": "#653859",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

@@ -21,6 +21,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'node tests/server.js',
+    env: { PHASE_TEST_UPDATES: '1' },
     url: baseURL,
     reuseExistingServer: false
   }

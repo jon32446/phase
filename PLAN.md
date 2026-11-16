@@ -165,6 +165,8 @@ Keep all runtime assets in this repository. Use project-relative URLs and test b
 
 Cache only static application assets in the service worker, never health records. Make updates predictable and avoid reloading an editor with unsaved changes. Offline operation is available after the application assets have been successfully cached.
 
+Approved update interaction: check on opening and when returning to the visible app. Download updates without reloading, then show an Update ready notice with an explicit Restart to update button. Explain that restart preserves saved records but clears memory-only Undo. Disable restart during editors, bulk selection, restore/deletion previews, saves, and restart activation. Do not require manually closing all windows, and do not automatically reload other open windows. A downloaded update may activate normally once all existing windows close. Failed installations preserve the current offline shell. Keep cache namespaces scoped to the hosting path, cache only allowlisted static assets, and retain older static caches while other windows remain open; clean them on a later sole-window load. Installation uses the browser's own controls rather than a custom install prompt.
+
 Use a restrictive Content Security Policy compatible with the static/offline design, and test that it does not break required functionality. No analytics, remote fonts, CDN resources, push services, or background health-data uploads.
 
 ## Implementation sequence
@@ -176,7 +178,7 @@ Use a restrictive Content Security Policy compatible with the static/offline des
 5. Add validated backup/restore, CSV export, and complete deletion.
 6. Add offline assets, update behaviour, accessibility checks, and Pages-path validation; review README claims against actual behaviour.
 
-Steps 1-5 are implemented: the diary, derived interval history, descriptive usable-length summaries, fixed-span reviews, automatic history check-ins, cautious next-period ranges, complete JSON backup/replace-only restore, observation CSV export, and confirmed complete deletion follow the agreed policies above. Reviewed history and dismissal preferences use versioned mutable storage with transactional correction effects and one-step session-only Undo. Restore/deletion use atomic writes, stale-preview checks, and successful-operation memory cleanup. Step 6 is next: offline assets, update behaviour, release-wide accessibility checks, and final claims review; root/subpath hosting and CSP checks are already in place. The acceptance checklist below tracks release-wide completion.
+Steps 1-5 are implemented: the diary, derived interval history, descriptive usable-length summaries, fixed-span reviews, automatic history check-ins, cautious next-period ranges, complete JSON backup/replace-only restore, observation CSV export, and confirmed complete deletion follow the agreed policies above. Reviewed history and dismissal preferences use versioned mutable storage with transactional correction effects and one-step session-only Undo. Restore/deletion use atomic writes, stale-preview checks, and successful-operation memory cleanup. Step 6's offline/installable shell and explicit update interaction are implemented alongside existing root/subpath hosting and CSP checks. Remaining first-release work is release-wide accessibility verification and final capability/privacy claims sign-off. The acceptance checklist below tracks release-wide completion.
 
 ## Validation and tooling
 
@@ -203,7 +205,7 @@ Run browser tests against a local static server at both the root and a repositor
 - [x] Delete all data survives reload, clears Undo, and works without a network once the page is loaded.
 - [ ] Core workflows work with keyboard and touch-sized controls.
 - [x] Browser tests detect unexpected external requests or health data in URLs.
-- [ ] Offline operation and asset updates never cache health records.
+- [x] Offline operation and asset updates never cache health records.
 - [x] Root and repository-subpath hosting both work.
 - [ ] README privacy and capability statements match the shipped application.
 

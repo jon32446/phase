@@ -14,7 +14,7 @@ The Calendar shows a cautious next-period range when at least three eligible int
 
 Settings supports complete JSON backup/replace-only restore, daily-observation CSV export, and explicitly confirmed complete deletion. Restores are validated before preview and commit atomically; invalid files or failed writes leave existing data intact. Restore and deletion clear session Undo only after success.
 
-Offline/PWA support is not implemented yet. **Do not rely on browser storage as your only record:** it can be lost. Keep your own unencrypted JSON backups somewhere secure.
+Phase supports offline loading after its application files have successfully cached, and installation through supporting browsers. Updates download in the background and offer an explicit **Restart to update** action. **Do not rely on browser storage as your only record:** it can be lost. Keep your own unencrypted JSON backups somewhere secure. Release-wide accessibility verification is still outstanding.
 
 Daily bleeding observations are separate from whether all period starts are recorded. Daily logging is not required: an unrecorded day is not an observation of "none", and a long interval is not automatically invalid. The usable-interval summary includes confirmed complete intervals and provisional intervals without reported missing starts or unresolved reviews; it labels those counts separately. Missing and unresolved intervals are excluded, and confirmed complete long intervals retain their actual length. These are descriptive summaries, not forecasts or medical assessments.
 
@@ -30,7 +30,7 @@ The application's data-handling commitment is:
 >
 > GitHub Pages serves the application and receives ordinary website-request metadata. Exports are unencrypted, and you are responsible for securing your device and any exported files.
 
-There are no accounts, remote fonts, CDN imports, telemetry, or cloud sync. All application JavaScript, HTML, CSS, and other runtime assets live in this project. Development tools are not shipped as application dependencies. The static shell has a restrictive Content Security Policy; there is no service worker or application asset cache yet.
+There are no accounts, remote fonts, CDN imports, telemetry, or cloud sync. All application JavaScript, HTML, CSS, and other runtime assets live in this project. Development tools are not shipped as application dependencies. The static shell has a restrictive Content Security Policy. The service worker caches only an explicit list of static application files, never diary records, imports, or exports.
 
 All user data is only stored locally and can be lost.
 
@@ -50,7 +50,15 @@ Unsupported formats/versions, unknown or missing fields, invalid values/dates, d
 
 **Export observations CSV** downloads `phase-observations.csv`, an unencrypted UTF-8 file with header `date,bleeding,periodStart`, CRLF line endings, and one recorded day per row in ascending date order. Dates use `YYYY-MM-DD`; bleeding is `none`, `spotting`, `light`, `medium`, or `heavy`; period-start markers are `true` or `false`. For example, the synthetic row `2026-01-03,none,false` means an explicit observation of no bleeding. Unrecorded dates are omitted, not converted to `none`. CSV excludes reviews and dismissals and is not a restore format; use JSON for complete backups.
 
-**Delete all data** requires a separate unchecked confirmation. It atomically clears Phase's saved user data, clears Undo and in-memory diary/editor state, and survives reload without leaving an application recovery copy. Only application schema metadata and a new opaque reset token remain; the token invalidates old edits without retaining health records. Restore and deletion notify other open Phase tabs to reload and discard old drafts/Undo. If a browser lacks cross-tab notifications, close those tabs to clear their old displays; a transactional reset-token check still prevents their old Undo from restoring removed records. It works without a network once the page is loaded; offline page loading is still pending. It does not clear unrelated apps' origin storage, downloaded exports, or records on other devices/browsers. Exports are unencrypted; secure your device and exported files.
+**Delete all data** requires a separate unchecked confirmation. It atomically clears Phase's saved user data, clears Undo and in-memory diary/editor state, and survives reload without leaving an application recovery copy. Only application schema metadata and a new opaque reset token remain; the token invalidates old edits without retaining health records. Restore and deletion notify other open Phase tabs to reload and discard old drafts/Undo. If a browser lacks cross-tab notifications, close those tabs to clear their old displays; a transactional reset-token check still prevents their old Undo from restoring removed records. It works without a network once the page is loaded, including after an offline reload when setup has completed. Static application caches remain available and contain no health records. It does not clear unrelated apps' origin storage, downloaded exports, or records on other devices/browsers. Exports are unencrypted; secure your device and exported files.
+
+## Offline use, installation, and updates
+
+Visit Phase online first and check **Settings > Offline use and updates** for confirmation that offline setup succeeded. After that, the same address can load offline; installation is optional. On browsers that support it, use Install or Add to Home Screen to open Phase in a standalone app window. Availability and installation controls vary by browser. Service workers require HTTPS, except for trusted local development addresses such as `localhost` and `127.0.0.1`.
+
+Phase checks for updates on opening and when you return to the page or app. A fully downloaded update shows **Update ready** with **Restart to update**. Restart reloads that window, preserves saved records, and clears memory-only Undo. The action is disabled during an editor, day selection, restore/deletion preview, or save; finish or cancel that work first. Minimizing does not apply the update or discard a draft. Other open windows are not automatically restarted and can continue their loaded version until reloaded. If all Phase windows close, a downloaded update can activate normally before the next visit.
+
+A failed update leaves the current offline version available. Older static caches are retained while other windows remain open and cleaned on a later sole-window load. Browser storage eviction or clearing site data can remove both the diary and offline assets; installation and offline caching are not backups.
 
 ## Run locally
 
@@ -64,7 +72,9 @@ Open <http://127.0.0.1:4173/>. No dependency installation or build step is neede
 
 ## Self-hosting
 
-Publish `index.html`, `styles.css`, and the entire `src/` directory to a static host such as GitHub Pages. Runtime assets use project-relative URLs and support repository subpaths. There are no third-party runtime dependencies or build steps.
+Publish `index.html`, `styles.css`, `sw.js`, `manifest.webmanifest`, `icon.svg`, and the entire `src/` directory to an HTTPS static host such as GitHub Pages. Runtime assets use project-relative URLs and support repository subpaths. Serve the manifest as `application/manifest+json`, the icon as `image/svg+xml`, and the service worker as JavaScript. There are no third-party runtime dependencies or build steps.
+
+For each application release, increment `VERSION` in `sw.js` and keep its static asset allowlist in sync with the published files. Publish a consistent set of assets, with `sw.js` last where deployment is not atomic; avoid long-lived HTTP caching of the worker script. An update becomes ready only if every listed asset downloads successfully. Future storage-schema changes must remain compatible with older open windows or define a separate migration/update policy before shipping.
 
 ## Development and testing
 

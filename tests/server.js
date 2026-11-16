@@ -4,12 +4,17 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
+const types = {
+  '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
+  '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml'
+};
 const assets = new Map([
   ['index.html', '.html'], ['styles.css', '.css'],
   ['src/app.js', '.js'], ['src/dates.js', '.js'],
   ['src/records.js', '.js'], ['src/storage.js', '.js'], ['src/history.js', '.js'],
-  ['src/predictions.js', '.js'], ['src/backup.js', '.js']
+  ['src/predictions.js', '.js'], ['src/backup.js', '.js'],
+  ['src/offline.js', '.js'], ['sw.js', '.js'],
+  ['manifest.webmanifest', '.webmanifest'], ['icon.svg', '.svg']
 ]);
 
 const server = createServer(async (request, response) => {
@@ -24,7 +29,16 @@ const server = createServer(async (request, response) => {
     return;
   }
   try {
-    const body = await readFile(resolve(root, asset));
+    let body = await readFile(resolve(root, asset));
+    // Exercise real service-worker upgrades without changing files on disk.
+    if (asset === 'sw.js' && process.env.PHASE_TEST_UPDATES === '1') {
+      const version = url.searchParams.get('test-version') ??
+        request.headers.cookie?.match(/(?:^|; )phase-test-version=(2|3|failed)(?:;|$)/)?.[1];
+      if (['2', '3', 'failed'].includes(version)) {
+        body = body.toString().replace(/const VERSION = '[^']+';/, `const VERSION = 'test-${version}';`);
+        if (version === 'failed') body = body.replace("'./icon.svg'", "'./missing-test-asset.svg'");
+      }
+    }
     response.writeHead(200, { 'Content-Type': `${types[assets.get(asset)]}; charset=utf-8`, 'Cache-Control': 'no-store' });
     response.end(body);
   } catch {

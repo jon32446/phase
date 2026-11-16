@@ -362,13 +362,27 @@ test('runtime requests contain only static assets, no health data or external re
   for (const request of requests) {
     const url = new URL(request.url);
     expect(url.origin).toBe(new URL(baseURL).origin);
-    expect(url.pathname).toMatch(/^\/phase\/(?:index\.html|styles\.css|src\/(?:app|dates|records|storage|history|predictions|backup)\.js)?$/);
+    expect(url.pathname).toMatch(/^\/phase\/(?:index\.html|styles\.css|sw\.js|manifest\.webmanifest|icon\.svg|src\/(?:app|offline|dates|records|storage|history|predictions|backup)\.js)?$/);
     expect(url.search).toBe('');
     expect(url.hash).toBe('');
     expect(request.body).toBeNull();
   }
   expect(page.url()).toBe(`${baseURL}/phase/`);
-  expect(await page.evaluate(() => caches.keys())).toEqual([]);
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  const cached = await page.evaluate(async () => {
+    const names = await caches.keys();
+    return Promise.all(names.map(async (name) => ({
+      name, urls: (await (await caches.open(name)).keys()).map((request) => request.url)
+    })));
+  });
+  expect(cached).toHaveLength(1);
+  for (const { name, urls } of cached) {
+    expect(name).toContain('/phase/:');
+    expect(urls).toHaveLength(13);
+    for (const url of urls) {
+      expect(url).toMatch(/\/phase\/(?:index\.html|styles\.css|manifest\.webmanifest|icon\.svg|src\/(?:app|offline|dates|records|storage|history|predictions|backup)\.js)?$/);
+    }
+  }
 });
 
 test('mobile/touch controls fit the viewport and editor supports a touch workflow', async ({ page }) => {

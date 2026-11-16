@@ -6,6 +6,7 @@ import {
 } from './history.js';
 import { deriveInsights } from './predictions.js';
 import { createBackup, createCSV, parseBackup } from './backup.js';
+import { setupOffline } from './offline.js';
 
 const $ = (id) => document.getElementById(id);
 const symbols = { none: '0', spotting: 'S', light: 'L', medium: 'M', heavy: 'H' };
@@ -34,6 +35,11 @@ let pendingReview;
 let reviewReturnSpan;
 let reviewReturnSection;
 let pendingData;
+const refreshUpdate = setupOffline(() => !busy && !editing && !selectionMode &&
+  !document.querySelector('dialog[open]'), setBusy);
+new MutationObserver(refreshUpdate).observe(document.body, {
+  subtree: true, attributes: true, attributeFilter: ['open']
+});
 
 function announce(message) {
   $('status').textContent = message;
@@ -234,6 +240,7 @@ function applyState(state) {
 }
 
 function updateSelectionControls() {
+  refreshUpdate();
   $('select-days').hidden = selectionMode;
   $('select-days').disabled = !storage || busy;
   $('selection-bar').hidden = !selectionMode;
@@ -276,6 +283,7 @@ function clearConflict() {
 
 function setBusy(value) {
   busy = value;
+  refreshUpdate();
   for (const id of ['day-form', 'bulk-form', 'review-form', 'data-form']) {
     for (const control of $(id).elements) control.disabled = value;
     $(id).setAttribute('aria-busy', String(value));
@@ -330,6 +338,7 @@ function closeEditor() {
 
 $('day-editor').addEventListener('close', () => {
   editing = false;
+  refreshUpdate();
   clearConflict();
   const container = returnFocus?.page === 'history' ? $('history') : $('calendar');
   const target = [...container.querySelectorAll('button[data-date]')]
@@ -426,6 +435,7 @@ $('cancel-review').addEventListener('click', () => {
 });
 $('review-editor').addEventListener('close', () => {
   editing = false;
+  refreshUpdate();
   pendingReview = undefined;
   const target = [...$(reviewReturnSection).querySelectorAll('button[data-span]')]
     .find((button) => button.dataset.span === reviewReturnSpan);
@@ -628,6 +638,7 @@ async function applyBulkAction(action) {
 
 $('bulk-editor').addEventListener('close', () => {
   editing = false;
+  refreshUpdate();
   pendingBulk = undefined;
   $('bulk-preview').replaceChildren();
   updateBulkCommit();
@@ -868,6 +879,7 @@ $('data-editor').addEventListener('close', () => {
   const deleting = pendingData?.deleting;
   pendingData = undefined;
   editing = false;
+  refreshUpdate();
   $('data-form').reset();
   for (const id of ['data-current', 'data-incoming', 'data-error']) $(id).textContent = '';
   updateDataControls();
