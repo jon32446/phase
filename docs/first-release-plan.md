@@ -1,4 +1,6 @@
-# Phase: first-release plan
+# Phase: completed first-release specification
+
+This archived specification records the completed first-release scope, approved decisions, and acceptance criteria. All acceptance checks below are complete within the agreed verification scope. Optional future ideas are listed in [TODO.md](../TODO.md).
 
 ## Goal
 

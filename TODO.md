@@ -2,7 +2,7 @@
 
 These are optional ideas, not commitments or first-release requirements.
 
-The current diary includes a calendar-first layout with quick daily and historical editing, labelled graphical flow choices, cross-month bulk editing with direct conflict-free actions, explicit starts, descriptive interval history, start-history reviews and automatic check-ins, cautious next-period ranges, one-step session-only Undo for edits, batches, and review answers, complete JSON backup/replace-only restore, daily-observation CSV export, confirmed complete deletion, and an offline/installable shell with explicit restart-to-update. These later ideas are outside the completed first-release scope documented in PLAN.md.
+The current diary includes a calendar-first layout with quick daily and historical editing, labelled graphical flow choices, cross-month bulk editing with direct conflict-free actions, explicit starts, descriptive interval history, start-history reviews and automatic check-ins, cautious next-period ranges, one-step session-only Undo for edits, batches, and review answers, complete JSON backup/replace-only restore, daily-observation CSV export, confirmed complete deletion, and an offline/installable shell with explicit restart-to-update. These later ideas are outside the [completed first-release scope](docs/first-release-plan.md).
 
 - [ ] Improve origin isolation, for example by hosting Phase on a dedicated origin rather than alongside other apps on `username.github.io`. Moving origins requires an explicit export/import migration because browser storage does not move with the site.
 

@@ -24,7 +24,7 @@ Daily bleeding observations are separate from whether all period starts are reco
 
 Reviews cover fixed dates and do not extend automatically. Re-reviewing overlapping answers explicitly replaces their whole covered span. Adding a remembered start does not by itself resolve a missing-start report; an unsure answer preserves that warning until explicitly resolved or removed. Gap checks use a personal median only when at least three other usable intervals exist; otherwise they explain limited history without applying a population-based duration cutoff. Dismissal is not confirmation and does not unlock a forecast. Dismissed and unsure spans are not prompted again unless their recorded starts change; a confirmed open span has a seven-day minimum before another automatic check-in.
 
-[PLAN.md](PLAN.md) defines first-release behaviour, approved decisions, and acceptance criteria. [TODO.md](TODO.md) lists optional later ideas, not release requirements.
+The [completed first-release specification](docs/first-release-plan.md) preserves first-release behaviour, approved decisions, and acceptance criteria. [TODO.md](TODO.md) lists optional later ideas.
 
 ## Privacy promise
 
