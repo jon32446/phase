@@ -149,7 +149,13 @@ JSON backup/restore must preserve user statements about start-history completene
 
 Validate imports before committing anything, show a preview, reject unsupported schemas with an explanation, and preserve existing data on failure. Treat imported content as data, never HTML or executable code.
 
-The merge-versus-replace policy and conflict-resolution interface are open decisions. Do not implement silent overwrites as a default.
+Approved restore policy: replace-only for the first release, with current/incoming observation/start, review, and dismissal counts and a separate unchecked-by-default approval before replacement. Never silently overwrite or merge dates. An empty valid backup replaces the diary with no user records. A successful restore clears ordinary Undo and is not itself undoable. Cancellation and failure preserve the previous Undo.
+
+Approved format and validation: the readable JSON envelope uses `format: "phase-backup"`, backup `version: 1` (independent of the database schema), and `records`, `reviews`, and `dismissals` arrays. Preserve all supported mutable user state, including stale reviews and unresolved missing-start warnings, but exclude derived results, application schema metadata, and Undo. Reject the entire file for unsupported formats/versions, unknown or missing fields, invalid values, duplicate dates/IDs, future observations or reviewed dates, overlapping reviews, or inconsistent start contexts; do not silently repair or skip entries. Reviews may share boundary dates. Require every stored start context to match the imported records and every open dismissal anchor to match the latest start.
+
+Approved CSV scope: daily observations and explicit period-start markers only, with header `date,bleeding,periodStart`, ascending `YYYY-MM-DD` dates, stored bleeding values, Boolean `true`/`false` markers, UTF-8 encoding, and CRLF line endings. Omit unrecorded dates; do not turn them into observations of none. JSON, not CSV, is the complete backup and restore format.
+
+Restore and complete deletion compare the entire saved diary with the preview snapshot inside the write transaction. An intervening change requires cancellation and a fresh preview, not automatic retry. Failed writes leave all stores unchanged. Complete deletion clears all Phase stores (retaining only the application schema version and a new opaque reset token), ordinary Undo, and in-memory diary/editor state; it does not delete downloaded exports or unrelated apps' storage. Restore and deletion invalidate old edits transactionally with the reset token and notify other open Phase tabs to reload, discarding old drafts and Undo. The confirmation explains that cross-tab effect. Where cross-tab notifications are unavailable, ask the user to close other Phase tabs to clear their old displays; token checks still prevent old Undo from restoring removed health records.
 
 Explain that browser storage is not a backup and recommend user-owned exports. Handle unavailable storage, failed transactions, and quota errors visibly.
 
@@ -170,7 +176,7 @@ Use a restrictive Content Security Policy compatible with the static/offline des
 5. Add validated backup/restore, CSV export, and complete deletion.
 6. Add offline assets, update behaviour, accessibility checks, and Pages-path validation; review README claims against actual behaviour.
 
-Steps 1-4 are implemented: the diary, derived interval history, descriptive usable-length summaries, fixed-span reviews, automatic history check-ins, and cautious next-period ranges follow the agreed policies above. Reviewed history and dismissal preferences use versioned mutable storage with transactional correction effects and one-step session-only Undo. Step 5 is next: validated backup/restore, CSV export, and complete deletion. Step 6 remains pending, with root/subpath hosting and CSP checks already in place. The acceptance checklist below tracks release-wide completion.
+Steps 1-5 are implemented: the diary, derived interval history, descriptive usable-length summaries, fixed-span reviews, automatic history check-ins, cautious next-period ranges, complete JSON backup/replace-only restore, observation CSV export, and confirmed complete deletion follow the agreed policies above. Reviewed history and dismissal preferences use versioned mutable storage with transactional correction effects and one-step session-only Undo. Restore/deletion use atomic writes, stale-preview checks, and successful-operation memory cleanup. Step 6 is next: offline assets, update behaviour, release-wide accessibility checks, and final claims review; root/subpath hosting and CSP checks are already in place. The acceptance checklist below tracks release-wide completion.
 
 ## Validation and tooling
 
@@ -191,10 +197,10 @@ Run browser tests against a local static server at both the root and a repositor
 - [x] Known missing-start intervals are not treated as single usable cycles; confirmed long intervals retain their actual length.
 - [x] Reviewed-span corrections and persistence follow agreed, tested rules.
 - [x] Estimates handle insufficient, incomplete, and variable history honestly.
-- [ ] JSON export/restore round-trips the supported user data.
-- [ ] Invalid imports and failed saves leave existing data intact.
-- [ ] CSV export preserves dates and values in a documented format.
-- [ ] Delete all data survives reload, clears Undo, and works offline.
+- [x] JSON export/restore round-trips the supported user data.
+- [x] Invalid imports and failed saves leave existing data intact.
+- [x] CSV export preserves dates and values in a documented format.
+- [x] Delete all data survives reload, clears Undo, and works without a network once the page is loaded.
 - [ ] Core workflows work with keyboard and touch-sized controls.
 - [x] Browser tests detect unexpected external requests or health data in URLs.
 - [ ] Offline operation and asset updates never cache health records.
@@ -203,4 +209,4 @@ Run browser tests against a local static server at both the root and a repositor
 
 ## Decisions to resolve before dependent implementation
 
-- Import merge/replace behaviour and how users resolve conflicting dates.
+None currently. The first release uses the approved replace-only restore policy above; merge import is not part of this release.

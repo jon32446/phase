@@ -5,6 +5,7 @@ import {
   startDates, startsInSpan, validateReview
 } from './history.js';
 import { deriveInsights, sameDismissal, validateDismissal } from './predictions.js';
+import { sameState, validateState } from './backup.js';
 
 export const DATABASE_NAME = 'phase-diary';
 export const SCHEMA_VERSION = 3;
@@ -96,17 +97,20 @@ class DiaryStorage {
       let days;
       let reviews;
       let dismissals;
+      let token;
       try {
-        transaction = this.db.transaction(['days', 'reviews', 'dismissals'], 'readonly');
+        transaction = this.db.transaction(['days', 'reviews', 'dismissals', 'metadata'], 'readonly');
         days = transaction.objectStore('days').getAll();
         reviews = transaction.objectStore('reviews').getAll();
         dismissals = transaction.objectStore('dismissals').getAll();
+        token = transaction.objectStore('metadata').get('resetToken');
       } catch (error) {
         reject(storageError(error));
         return;
       }
       transaction.oncomplete = () => {
         try {
+          this.resetToken = token.result?.value ?? null;
           resolve({
             records: days.result.map(validateRecord), reviews: reviews.result.map(validateReview),
             dismissals: dismissals.result.map(validateDismissal)
@@ -121,6 +125,63 @@ class DiaryStorage {
 
   replaceDays(edits) {
     return this.commit({ edits });
+  }
+
+  replaceState(state, expected) {
+    return this.replaceAll(validateState(state), expected, false);
+  }
+
+  deleteAll(expected) {
+    return this.replaceAll({ records: [], reviews: [], dismissals: [] }, expected, true);
+  }
+
+  replaceAll(state, expected, deleting) {
+    return new Promise((resolve, reject) => {
+      let transaction;
+      let failure;
+      const expectedToken = this.resetToken;
+      const resetToken = globalThis.crypto.randomUUID();
+      try {
+        const stores = deleting ? [...this.db.objectStoreNames] : ['days', 'reviews', 'dismissals', 'metadata'];
+        transaction = this.db.transaction(stores, 'readwrite');
+        const token = transaction.objectStore('metadata').get('resetToken');
+        const days = transaction.objectStore('days').getAll();
+        const reviews = transaction.objectStore('reviews').getAll();
+        const dismissals = transaction.objectStore('dismissals').getAll();
+        dismissals.onsuccess = () => {
+          try {
+            if ((expectedToken !== undefined && expectedToken !== (token.result?.value ?? null)) ||
+                !sameState({ records: days.result, reviews: reviews.result, dismissals: dismissals.result }, expected)) {
+              throw Object.assign(new Error(
+                'History changed elsewhere. Cancel and open a fresh preview before trying again.'
+              ), { code: 'STALE_RECORD' });
+            }
+            for (const name of stores) {
+              if (deleting || name !== 'metadata') transaction.objectStore(name).clear();
+            }
+            for (const record of state.records) transaction.objectStore('days').put(record);
+            for (const review of state.reviews) transaction.objectStore('reviews').put(review);
+            for (const dismissal of state.dismissals) transaction.objectStore('dismissals').put(dismissal);
+            if (deleting) transaction.objectStore('metadata').put({ key: 'schemaVersion', value: SCHEMA_VERSION });
+            transaction.objectStore('metadata').put({ key: 'resetToken', value: resetToken });
+          } catch (error) {
+            failure = error;
+            transaction.abort();
+          }
+        };
+      } catch (error) {
+        if (transaction) transaction.abort();
+        reject(storageError(error));
+        return;
+      }
+      transaction.oncomplete = () => {
+        this.resetToken = resetToken;
+        resolve(state);
+      };
+      transaction.onabort = () => reject(failure?.code === 'STALE_RECORD' ? failure : new Error(
+        'Browser storage failed. No data was replaced or deleted. Try again.', { cause: failure ?? transaction.error }
+      ));
+    });
   }
 
   saveReview(span, answer, expected) {
@@ -141,6 +202,7 @@ class DiaryStorage {
   }
 
   commit({ edits = [], reviewEdit, restore, dismissCheck }) {
+    const expectedToken = restore ? restore.resetToken : this.resetToken;
     const dates = new Set();
     const today = localToday();
     const changes = edits.map(({ date, next, expected }) => {
@@ -160,7 +222,8 @@ class DiaryStorage {
       let failure;
       let result;
       try {
-        transaction = this.db.transaction(['days', 'reviews', 'dismissals'], 'readwrite');
+        transaction = this.db.transaction(['days', 'reviews', 'dismissals', 'metadata'], 'readwrite');
+        const token = transaction.objectStore('metadata').get('resetToken');
         const store = transaction.objectStore('days');
         const reviewStore = transaction.objectStore('reviews');
         const daysRequest = store.getAll();
@@ -169,6 +232,12 @@ class DiaryStorage {
         const dismissalsRequest = dismissalStore.getAll();
         dismissalsRequest.onsuccess = () => {
           try {
+            const resetToken = token.result?.value ?? null;
+            if (expectedToken !== undefined && expectedToken !== resetToken) {
+              throw Object.assign(new Error(
+                'The diary was replaced or deleted in another tab. Reload before editing. Old edits cannot be restored.'
+              ), { code: 'DIARY_RESET' });
+            }
             const days = new Map(daysRequest.result.map((record) => {
               const valid = validateRecord(record);
               return [valid.date, valid];
@@ -281,6 +350,7 @@ class DiaryStorage {
               else dismissalStore.delete(change.id);
             }
             result = {
+              resetToken,
               changes, reviewChanges, dismissalChanges,
               records: [...days.values()], reviews: nextReviews, dismissals: nextDismissals,
               reviewGuards: nextReviews.filter((review) => affected(review, reviewChanges)),
@@ -290,7 +360,7 @@ class DiaryStorage {
               })
             };
           } catch (error) {
-            failure = error.code === 'STALE_RECORD' || error instanceof TypeError || error instanceof RangeError ?
+            failure = ['STALE_RECORD', 'DIARY_RESET'].includes(error.code) || error instanceof TypeError || error instanceof RangeError ?
               error : storageError(error);
             transaction.abort();
           }
@@ -300,7 +370,10 @@ class DiaryStorage {
         reject(storageError(error));
         return;
       }
-      transaction.oncomplete = () => resolve(result);
+      transaction.oncomplete = () => {
+        this.resetToken = result.resetToken;
+        resolve(result);
+      };
       transaction.onabort = () => reject(failure ?? storageError(transaction.error));
     });
   }

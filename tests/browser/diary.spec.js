@@ -331,6 +331,29 @@ test('runtime requests contain only static assets, no health data or external re
   await page.getByRole('button', { name: 'Save review', exact: true }).click();
   await expect(page.locator('#review-editor')).not.toBeVisible();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const download = page.waitForEvent('download');
+  await page.locator('#export-json').click();
+  await download;
+  const backup = await page.evaluate(async () => {
+    const { openStorage } = await import(new URL('src/storage.js', location.href));
+    const storage = await openStorage();
+    try {
+      return JSON.stringify({ format: 'phase-backup', version: 1, ...await storage.readState() });
+    } finally {
+      storage.db.close();
+    }
+  });
+  await page.locator('#import-file').setInputFiles({
+    name: 'synthetic.json', mimeType: 'application/json', buffer: Buffer.from(backup)
+  });
+  await page.locator('#preview-import').click();
+  await page.locator('#data-approval').check();
+  await page.locator('#confirm-data').click();
+  await expect(page.locator('#status')).toHaveText(/Backup restored/);
+  await page.locator('#delete-data').click();
+  await page.locator('#data-approval').check();
+  await page.locator('#confirm-data').click();
+  await expect(page.locator('#status')).toHaveText(/All saved Phase data deleted/);
   await page.reload();
   await expect(page.getByRole('status')).toHaveText('Local records ready.');
   violations.push(...await page.evaluate(() => window.cspViolations));
@@ -339,7 +362,7 @@ test('runtime requests contain only static assets, no health data or external re
   for (const request of requests) {
     const url = new URL(request.url);
     expect(url.origin).toBe(new URL(baseURL).origin);
-    expect(url.pathname).toMatch(/^\/phase\/(?:index\.html|styles\.css|src\/(?:app|dates|records|storage|history|predictions)\.js)?$/);
+    expect(url.pathname).toMatch(/^\/phase\/(?:index\.html|styles\.css|src\/(?:app|dates|records|storage|history|predictions|backup)\.js)?$/);
     expect(url.search).toBe('');
     expect(url.hash).toBe('');
     expect(request.body).toBeNull();

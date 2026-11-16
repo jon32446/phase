@@ -93,12 +93,45 @@
     <section id="settings-page" aria-labelledby="settings-heading" hidden>
       <h2 id="settings-heading">Settings and privacy</h2>
       <p>Phase stores your records in this browser on this device. It has no analytics, advertising, tracking, or third-party runtime resources, and does not send your records to anyone.</p>
-      <p>Browser storage is not a backup and can be lost. Backup/restore, CSV export, and the in-app delete-all control are not implemented in this development version. You can clear this site's data using your browser settings; doing so may also delete data belonging to other apps on the same origin.</p>
+      <p>Browser storage is not a backup and can be lost. Keep your own JSON backups. Exports are unencrypted; secure your device and exported files.</p>
+      <h3>Backup and export</h3>
+      <p>JSON includes daily observations, period starts, history reviews, and check-in dismissals. CSV includes daily observations and period-start markers only, not reviews or dismissals, and cannot be restored here. Unrecorded days are omitted, not exported as none.</p>
+      <div class="editor-actions">
+        <button id="export-json" type="button" disabled>Export JSON backup</button>
+        <button id="export-csv" type="button" disabled>Export observations CSV</button>
+      </div>
+      <h3>Restore a JSON backup</h3>
+      <p>Restore replaces your entire diary, including reviews and dismissals. It does not merge records and cannot be undone. Export your current diary first if you want to keep it. The file is read on this device, never uploaded.</p>
+      <label for="import-file">Phase JSON backup</label>
+      <input id="import-file" type="file" accept=".json,application/json" disabled>
+      <button id="preview-import" type="button" disabled>Preview restore</button>
+      <h3>Delete saved data</h3>
+      <p>Delete all Phase records, history reviews, and check-in dismissals in this browser. Downloaded exports and records in other browsers or devices are not deleted.</p>
+      <button id="delete-data" class="danger" type="button" disabled>Delete all data</button>
+      <p id="settings-error" class="error" role="alert" hidden></p>
       <p>GitHub Pages receives ordinary website-request metadata. Other apps on the same origin could technically access this storage. The owner promises that other apps they publish there will not read or share your records; use a separate origin if you do not want to rely on that promise.</p>
       <p>This is a diary, not a diagnostic tool or a method of contraception. There are no accounts or cloud sync. Offline installation is not available yet.</p>
       <p>Do not include real health records in public issues or screenshots.</p>
     </section>
   </main>
+
+  <dialog id="data-editor" aria-labelledby="data-heading" aria-describedby="data-help">
+    <form id="data-form">
+      <h2 id="data-heading"></h2>
+      <p id="data-help"></p>
+      <p id="data-current"></p>
+      <p id="data-incoming"></p>
+      <label class="checkbox-label">
+        <input id="data-approval" type="checkbox">
+        <span id="data-approval-label"></span>
+      </label>
+      <p id="data-error" class="error" role="alert" hidden></p>
+      <div class="editor-actions">
+        <button id="confirm-data" type="submit" class="danger" disabled></button>
+        <button id="cancel-data" type="button">Cancel</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="day-editor" aria-labelledby="editor-heading" aria-describedby="editor-help">
     <form id="day-form">

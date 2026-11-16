@@ -5,9 +5,14 @@ import {
   expandReviewSpan, overlaps, REVIEW_LABELS, reviewNeedsAttention, startDates
 } from './history.js';
 import { deriveInsights } from './predictions.js';
+import { createBackup, createCSV, parseBackup } from './backup.js';
 
 const $ = (id) => document.getElementById(id);
 const symbols = { none: '0', spotting: 'S', light: 'L', medium: 'M', heavy: 'H' };
+const resetChannel = globalThis.BroadcastChannel ? new BroadcastChannel('phase-diary-reset') : null;
+resetChannel?.addEventListener('message', (event) => {
+  if (event.data === 'reset') location.reload();
+});
 let records = new Map();
 let reviews = [];
 let dismissals = [];
@@ -28,6 +33,7 @@ let bulkReturnAction;
 let pendingReview;
 let reviewReturnSpan;
 let reviewReturnSection;
+let pendingData;
 
 function announce(message) {
   $('status').textContent = message;
@@ -270,7 +276,7 @@ function clearConflict() {
 
 function setBusy(value) {
   busy = value;
-  for (const id of ['day-form', 'bulk-form', 'review-form']) {
+  for (const id of ['day-form', 'bulk-form', 'review-form', 'data-form']) {
     for (const control of $(id).elements) control.disabled = value;
     $(id).setAttribute('aria-busy', String(value));
   }
@@ -282,9 +288,11 @@ function setBusy(value) {
     button.disabled = value || button.dataset.date > localToday();
   }
   for (const button of $('history-page').querySelectorAll('button')) button.disabled = value || !storage;
+  for (const control of $('settings-page').querySelectorAll('button, input')) control.disabled = value || !storage;
   updateSelectionControls();
   updateBulkCommit();
   updateReviewControls();
+  updateDataControls();
 }
 
 async function openEditor(date, focusTarget) {
@@ -329,7 +337,10 @@ $('day-editor').addEventListener('close', () => {
   (target ?? document.querySelector('nav [aria-current="page"]')).focus();
 });
 
-for (const [dialog, form] of [['day-editor', 'day-form'], ['bulk-editor', 'bulk-form'], ['review-editor', 'review-form']]) {
+for (const [dialog, form] of [
+  ['day-editor', 'day-form'], ['bulk-editor', 'bulk-form'],
+  ['review-editor', 'review-form'], ['data-editor', 'data-form']
+]) {
   $(dialog).addEventListener('cancel', (event) => {
     if (busy) event.preventDefault();
   });
@@ -473,6 +484,7 @@ function discardUndo() {
   undo = undefined;
   const hadFocus = document.activeElement === $('undo');
   $('undo-bar').hidden = true;
+  $('undo-description').textContent = '';
   if (hadFocus) document.querySelector('nav [aria-current="page"]').focus();
 }
 
@@ -480,6 +492,7 @@ function offerUndo(result) {
   discardUndo();
   const changes = result.changes.filter((change) => change.changed);
   undo = {
+    resetToken: result.resetToken,
     changes, reviewChanges: result.reviewChanges,
     reviewGuards: result.reviewGuards, startGuards: result.startGuards,
     dismissalChanges: result.dismissalChanges
@@ -718,6 +731,7 @@ $('undo').addEventListener('click', async () => {
       `Undid the edit to ${dateLabel(changes[0].date)}.` :
       `Undid the batch edit to ${changes.length} days.`);
   } catch (error) {
+    if (error.code === 'DIARY_RESET') discardUndo();
     announce(error.message);
   } finally {
     setBusy(false);
@@ -757,13 +771,160 @@ $('today').addEventListener('click', () => {
   $('calendar').querySelector('[aria-current="date"]')?.focus();
 });
 
+function settingsError(error) {
+  $('settings-error').textContent = error.message;
+  $('settings-error').hidden = false;
+}
+
+function download(text, type, filename) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  try {
+    link.click();
+  } finally {
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+}
+
+for (const kind of ['json', 'csv']) {
+  $(`export-${kind}`).addEventListener('click', async () => {
+    if (!storage || busy || editing) return;
+    setBusy(true);
+    $('settings-error').hidden = true;
+    try {
+      const state = await storage.readState();
+      const text = kind === 'json' ? JSON.stringify(createBackup(state), null, 2) + '\n' : createCSV(state);
+      download(text, kind === 'json' ? 'application/json' : 'text/csv;charset=utf-8',
+        kind === 'json' ? 'phase-backup.json' : 'phase-observations.csv');
+      announce('Export download requested. The file is unencrypted; keep it somewhere secure.');
+    } catch (error) {
+      settingsError(error);
+    } finally {
+      setBusy(false);
+    }
+  });
+}
+
+function updateDataControls() {
+  $('confirm-data').disabled = busy || !pendingData || pendingData.stale || !$('data-approval').checked;
+}
+
+function stateCounts(state) {
+  return `${state.records.length} daily observations (${startDates(state.records).length} period starts), ` +
+    `${state.reviews.length} history reviews, ${state.dismissals.length} check-in dismissals.`;
+}
+
+async function previewData(deleting) {
+  if (!storage || busy || editing) return;
+  setBusy(true);
+  $('settings-error').hidden = true;
+  try {
+    let state;
+    if (!deleting) {
+      const file = $('import-file').files[0];
+      if (!file) throw new Error('Choose a Phase JSON backup first.');
+      state = parseBackup(await file.text());
+    }
+    const expected = await storage.readState();
+    pendingData = { state, expected, deleting };
+    $('data-heading').textContent = deleting ? 'Delete all Phase data?' : 'Replace diary with this backup?';
+    $('data-help').textContent = deleting ?
+      'This permanently deletes all saved Phase user data in this browser and clears Undo. It cannot be undone. Exported files and other devices are unaffected.' :
+      'This replaces all current observations, period starts, reviews, and dismissals with the backup. It clears Undo and cannot be undone. Nothing changes until you confirm.';
+    $('data-help').textContent += resetChannel ?
+      ' Other open Phase tabs will reload and discard unsaved drafts.' :
+      ' Close other Phase tabs to clear their old on-screen data; their old edits cannot be restored.';
+    $('data-current').textContent = `Currently saved: ${stateCounts(expected)}`;
+    $('data-incoming').textContent = deleting ? '' : `Backup to restore: ${stateCounts(state)}`;
+    $('data-approval-label').textContent = deleting ?
+      'I understand that all saved Phase data will be permanently deleted.' :
+      'I understand that the backup will replace my entire current diary.';
+    $('confirm-data').textContent = deleting ? 'Permanently delete all data' : 'Replace diary';
+    $('data-approval').checked = false;
+    $('data-error').hidden = true;
+    editing = true;
+    $('data-editor').showModal();
+  } catch (error) {
+    pendingData = undefined;
+    settingsError(error);
+  } finally {
+    $('import-file').value = '';
+    setBusy(false);
+    if ($('data-editor').open) $('data-approval').focus();
+  }
+}
+
+$('preview-import').addEventListener('click', () => previewData(false));
+$('delete-data').addEventListener('click', () => previewData(true));
+$('data-approval').addEventListener('change', updateDataControls);
+$('cancel-data').addEventListener('click', () => {
+  if (!busy) $('data-editor').close();
+});
+$('data-editor').addEventListener('close', () => {
+  const deleting = pendingData?.deleting;
+  pendingData = undefined;
+  editing = false;
+  $('data-form').reset();
+  for (const id of ['data-current', 'data-incoming', 'data-error']) $(id).textContent = '';
+  updateDataControls();
+  $(deleting ? 'delete-data' : 'preview-import').focus();
+});
+
+function clearDiaryMemory() {
+  discardUndo();
+  editorRequest++;
+  original = selectedDate = returnFocus = pendingConflict = pendingBulk = pendingReview = undefined;
+  bulkReturnAction = reviewReturnSpan = reviewReturnSection = undefined;
+  selectedDates.clear();
+  selectionMode = false;
+  for (const id of ['day-form', 'bulk-form', 'review-form']) $(id).reset();
+  for (const id of [
+    'editor-heading', 'editor-current', 'editor-error', 'conflict-message', 'resolve-conflict',
+    'bulk-preview', 'bulk-summary', 'bulk-error', 'review-heading', 'review-boundaries',
+    'review-starts', 'review-existing', 'review-error', 'selection-error-message', 'settings-error'
+  ]) $(id).replaceChildren();
+  $('review-add-date').removeAttribute('min');
+  $('review-add-date').removeAttribute('max');
+  $('import-file').value = '';
+  month = localToday().slice(0, 7);
+}
+
+$('data-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (busy || !pendingData || pendingData.stale || !$('data-approval').checked) return;
+  setBusy(true);
+  $('data-error').hidden = true;
+  try {
+    const { state, expected, deleting } = pendingData;
+    const result = deleting ? await storage.deleteAll(expected) : await storage.replaceState(state, expected);
+    clearDiaryMemory();
+    applyState(result);
+    // Drop the preview's recovery copy before announcing successful deletion or restore.
+    pendingData = { deleting };
+    resetChannel?.postMessage('reset');
+    announce(deleting ? 'All saved Phase data deleted. Undo has been cleared.' :
+      'Backup restored. Your diary was replaced and Undo has been cleared.');
+    setBusy(false);
+    $('data-editor').close();
+  } catch (error) {
+    if (error.code === 'STALE_RECORD') pendingData.stale = true;
+    $('data-error').textContent = error.message;
+    $('data-error').hidden = false;
+    setBusy(false);
+  }
+});
+
 renderRecords();
 updateSelectionControls();
 announce('Loading local records...');
 try {
   storage = await openStorage();
   applyState(await storage.readState());
-  updateSelectionControls();
+  setBusy(false);
   announce('Local records ready.');
 } catch (error) {
   storage = undefined;

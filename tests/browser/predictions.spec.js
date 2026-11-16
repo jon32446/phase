@@ -73,7 +73,7 @@ for (const path of ['/', '/phase/']) {
     for (const request of requests) {
       const url = new URL(request.url);
       expect(url.origin).toBe(new URL(baseURL).origin);
-      expect(url.pathname).toMatch(/^\/(?:phase\/)?(?:index\.html|styles\.css|src\/(?:app|dates|records|storage|history|predictions)\.js)?$/);
+      expect(url.pathname).toMatch(/^\/(?:phase\/)?(?:index\.html|styles\.css|src\/(?:app|dates|records|storage|history|predictions|backup)\.js)?$/);
       expect(url.search).toBe('');
       expect(url.hash).toBe('');
       expect(request.data).toBeNull();
@@ -162,6 +162,7 @@ test('open-span check-ins do not regenerate daily after dismissal; complete answ
   const id = 'open:2026-10-21';
   await expect(card(page, id)).toHaveAttribute('data-reason', 'long');
   await card(page, id).getByRole('button', { name: 'Dismiss check-in', exact: true }).click();
+  await expect(card(page, id)).toHaveCount(0);
   await page.clock.fastForward(86400000);
   await page.reload();
   await expect(page.getByRole('status')).toHaveText('Local records ready.');
