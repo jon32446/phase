@@ -27,7 +27,7 @@
     <div id="undo-bar" class="undo-bar" hidden>
       <span id="undo-description"></span>
       <button id="undo" type="button">Undo last edit</button>
-      <span>Available for 30 seconds, until your next edit, or until reload.</span>
+      <span>Available until your next successful changed edit or reload. Kept only in memory.</span>
     </div>
 
     <section id="calendar-page" aria-labelledby="month-heading">
@@ -65,11 +65,20 @@
     </section>
 
     <section id="history-page" aria-labelledby="history-heading" hidden>
-      <h2 id="history-heading">History</h2>
+      <h2 id="history-heading" tabindex="-1">History</h2>
       <p>Recorded period starts, newest first. Select a date to correct its record.</p>
       <ul id="history"></ul>
       <p id="empty-history">No period starts recorded.</p>
-      <p class="notice">Cycle summaries, interval exclusions, and estimates are not available yet.</p>
+      <h3>Recorded intervals</h3>
+      <p id="cycle-summary"></p>
+      <p>These are gaps between recorded starts, not proof of complete cycles. Provisional intervals have no reported missing starts but are not confirmed complete. Sparse daily observations do not disqualify start history. Missing and unresolved intervals are excluded from the usable summary; confirmed long intervals keep their actual length.</p>
+      <ul id="intervals" class="history-list"></ul>
+      <div id="open-span"></div>
+      <h3>History reviews</h3>
+      <p>Review manually when useful; no automatic missing-history detection is running. Answers concern period starts, not daily bleeding observations. Unsure answers stay unresolved without repeatedly opening a prompt. Closing a review without saving does not answer it.</p>
+      <ul id="history-reviews" class="history-list"></ul>
+      <p id="empty-reviews">No history reviews saved.</p>
+      <p class="notice">Next-period estimates and automatic check-ins are not available yet.</p>
     </section>
 
     <section id="settings-page" aria-labelledby="settings-heading" hidden>
@@ -125,6 +134,41 @@
       <div class="editor-actions">
         <button id="save-bulk" type="submit">Save batch</button>
         <button id="cancel-bulk" type="button">Back to selection</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="review-editor" aria-labelledby="review-heading" aria-describedby="review-help">
+    <form id="review-form" novalidate>
+      <h2 id="review-heading"></h2>
+      <p id="review-help">Are all period starts in this span recorded? Daily logging is not required. For a span since the latest start, confirming means no further period occurred through the displayed end date.</p>
+      <p id="review-boundaries"></p>
+      <p id="review-starts"></p>
+      <div id="review-replacement" hidden>
+        <p>Existing answers affected:</p>
+        <ul id="review-existing"></ul>
+        <label class="checkbox-label">
+          <input id="review-replace" type="checkbox">
+          I understand that saving replaces, or removing deletes, all answers listed above.
+        </label>
+      </div>
+      <p id="review-missing-warning" class="notice" hidden>Missing starts were reported in this span. Choosing Unsure keeps that report unresolved. Confirm all starts are recorded only if no missing starts remain. Removing the answers also removes this warning.</p>
+      <label for="review-answer">Start-history completeness</label>
+      <select id="review-answer">
+        <option value="">Choose an answer</option>
+        <option value="complete">All period starts in this span are recorded</option>
+        <option value="missing">One or more starts are missing; I cannot remember their dates</option>
+        <option value="unsure">I am unsure whether all starts are recorded</option>
+      </select>
+      <p>If you remember a missing date, add the actual start instead. This closes the review without saving its draft answer.</p>
+      <label for="review-add-date">Remembered start date</label>
+      <input id="review-add-date" type="date">
+      <button id="add-remembered-start" type="button">Add a remembered start</button>
+      <p id="review-error" class="error" role="alert" hidden></p>
+      <div class="editor-actions">
+        <button id="save-review" type="submit">Save review</button>
+        <button id="remove-review" type="button" class="danger">Remove listed answers</button>
+        <button id="cancel-review" type="button">Close without saving</button>
       </div>
     </form>
   </dialog>

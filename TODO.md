@@ -2,7 +2,7 @@
 
 These are optional ideas, not commitments or first-release requirements.
 
-The implemented slices now include single-day editing, cross-month bulk editing with direct conflict-free actions, explicit starts, and one-step Undo for whole edits or batches. These later ideas remain outside those slices and do not replace the remaining first-release work in PLAN.md.
+The implemented slices include single-day editing, cross-month bulk editing with direct conflict-free actions, explicit starts, descriptive interval history, manual start-history reviews, and one-step session-only Undo for edits, batches, and review answers. These later ideas remain outside those slices and do not replace the remaining first-release work in PLAN.md.
 
 - [ ] Improve origin isolation, for example by hosting Phase on a dedicated origin rather than alongside other apps on `username.github.io`. Moving origins requires an explicit export/import migration because browser storage does not move with the site.
 

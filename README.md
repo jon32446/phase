@@ -6,11 +6,15 @@ Record and correct your history without accounts, data harvesting or cloud sync.
 
 ## Current status
 
-The diary supports a mobile-first monthly calendar, historical single-day and cross-month bulk editing, explicit period starts, browser-local storage, and a short-lived Undo for the last edit or batch. History lists recorded starts for correction.
+The diary supports a mobile-first monthly calendar, historical single-day and cross-month bulk editing, explicit period starts, browser-local storage, and one-step, memory-only Undo for the last changed edit, batch, or history-review answer. Undo remains available until the next successful changed edit or reload; navigation, elapsed time, cancelled edits, failed saves, and unchanged saves do not replace it.
 
-Cycle summaries, start-history completeness check-ins, next-period estimates, import/export, in-app complete deletion, and offline/PWA support are not implemented yet. **Do not rely on this development version as your only record:** browser storage can be lost, and backup export is not available.
+History lists editable starts, derived start-to-start intervals, descriptive length ranges, and manual start-history completeness reviews. Reviews distinguish all starts recorded, known missing starts with forgotten dates, and uncertainty without changing daily observations. Start corrections mark affected answers as needing review; Undo restores the correction and its review effects together.
 
-The planned history model separates daily bleeding observations from whether all period starts are recorded. It does not require daily logging: an unrecorded day is not an observation of "none", and a long interval is not automatically invalid. Planned check-ins will let users clarify potentially missing starts without inventing dates or reconstructing every day's bleeding. Prompting and prediction rules are still being designed.
+Automatic missing-history detection and check-ins, next-period estimates, import/export, in-app complete deletion, and offline/PWA support are not implemented yet. **Do not rely on this development version as your only record:** browser storage can be lost, and backup export is not available.
+
+Daily bleeding observations are separate from whether all period starts are recorded. Daily logging is not required: an unrecorded day is not an observation of "none", and a long interval is not automatically invalid. The usable-interval summary includes confirmed complete intervals and provisional intervals without reported missing starts or unresolved reviews; it labels those counts separately. Missing and unresolved intervals are excluded, and confirmed complete long intervals retain their actual length. These are descriptive summaries, not forecasts or medical assessments.
+
+Reviews cover fixed dates and do not extend automatically. Re-reviewing overlapping answers explicitly replaces their whole covered span. Adding a remembered start does not by itself resolve a missing-start report; an unsure answer preserves that warning until explicitly resolved or removed. Automatic prompting and prediction rules are still being designed.
 
 [PLAN.md](PLAN.md) defines first-release behaviour, remaining decisions, and acceptance criteria. [TODO.md](TODO.md) lists optional later ideas, not release requirements.
 

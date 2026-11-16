@@ -1,10 +1,14 @@
-import { dateLabel, localToday, monthDays, monthLabel, shiftMonth } from './dates.js';
+import { dateLabel, localToday, monthDays, monthLabel, parseDate, shiftMonth } from './dates.js';
 import { BLEEDING_LABELS, supportsStart } from './records.js';
 import { openStorage } from './storage.js';
+import {
+  deriveHistory, expandReviewSpan, overlaps, REVIEW_LABELS, reviewNeedsAttention, startDates
+} from './history.js';
 
 const $ = (id) => document.getElementById(id);
 const symbols = { none: '0', spotting: 'S', light: 'L', medium: 'M', heavy: 'H' };
 let records = new Map();
+let reviews = [];
 let storage;
 let month = localToday().slice(0, 7);
 let selectedDate;
@@ -14,12 +18,13 @@ let editing = false;
 let busy = false;
 let pendingConflict;
 let undo;
-let undoTimer;
 let editorRequest = 0;
 let selectionMode = false;
 const selectedDates = new Set();
 let pendingBulk;
 let bulkReturnAction;
+let pendingReview;
+let reviewReturnSpan;
 
 function announce(message) {
   $('status').textContent = message;
@@ -94,6 +99,58 @@ function renderHistory() {
   }
   $('history').replaceChildren(fragment);
   $('empty-history').hidden = starts.length > 0;
+  const history = deriveHistory([...records.values()], reviews, localToday());
+  const { summary } = history;
+  $('cycle-summary').textContent = summary.count ?
+    `${summary.count} usable recorded ${summary.count === 1 ? 'interval' : 'intervals'}: ${summary.confirmed} confirmed complete, ${summary.provisional} provisional. Length range: ${summary.min}-${summary.max} days.` :
+    'No usable completed intervals yet. Record at least two starts; review any unresolved or missing history.';
+  const labels = {
+    provisional: 'Provisionally usable; completeness not confirmed',
+    complete: 'Confirmed complete',
+    missing: 'Known missing starts; excluded from usable summaries',
+    unresolved: 'Unresolved or needs review; excluded from usable summaries'
+  };
+  const intervals = document.createDocumentFragment();
+  for (const interval of [...history.intervals].reverse()) {
+    const item = document.createElement('li');
+    item.dataset.status = interval.status;
+    const text = document.createElement('p');
+    text.textContent = `${interval.start} to ${interval.end}: ${interval.days} days. ${labels[interval.status]}.`;
+    item.append(text, reviewButton(interval, 'Review'));
+    intervals.append(item);
+  }
+  $('intervals').replaceChildren(intervals);
+  $('open-span').replaceChildren();
+  if (history.openSpan) {
+    const text = document.createElement('p');
+    text.textContent = `Since the latest start: ${history.openSpan.start} through ${history.openSpan.end}. This is not a completed interval.`;
+    $('open-span').append(text, reviewButton(history.openSpan, 'Review'));
+  }
+  const answers = document.createDocumentFragment();
+  for (const review of [...reviews].sort((a, b) => b.start.localeCompare(a.start))) {
+    const item = document.createElement('li');
+    item.dataset.reviewId = review.id;
+    const text = document.createElement('p');
+    text.textContent = `${review.start} through ${review.end}: ${reviewDescription(review, history.starts)}.`;
+    item.append(text, reviewButton(review, 'Change review'));
+    answers.append(item);
+  }
+  $('history-reviews').replaceChildren(answers);
+  $('empty-reviews').hidden = reviews.length > 0;
+}
+
+function reviewDescription(review, starts) {
+  return `${REVIEW_LABELS[review.answer]}${reviewNeedsAttention(review, starts) ? '; needs review because recorded starts changed' : ''}${review.missingUnresolved && review.answer !== 'missing' ? '; previously reported missing starts remain unresolved' : ''}`;
+}
+
+function reviewButton(span, action) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.dataset.span = `${span.start}/${span.end}`;
+  button.textContent = `${action} ${span.start} to ${span.end}`;
+  button.disabled = !storage || busy;
+  button.addEventListener('click', () => openReview(span));
+  return button;
 }
 
 function renderRecords() {
@@ -101,15 +158,9 @@ function renderRecords() {
   renderHistory();
 }
 
-function applyRecord(date, record) {
-  applyChanges([{ date, next: record }]);
-}
-
-function applyChanges(changes) {
-  for (const change of changes) {
-    if (change.next) records.set(change.date, change.next);
-    else records.delete(change.date);
-  }
+function applyState(state) {
+  records = new Map(state.records.map((record) => [record.date, record]));
+  reviews = state.reviews;
   renderRecords();
 }
 
@@ -156,7 +207,7 @@ function clearConflict() {
 
 function setBusy(value) {
   busy = value;
-  for (const id of ['day-form', 'bulk-form']) {
+  for (const id of ['day-form', 'bulk-form', 'review-form']) {
     for (const control of $(id).elements) control.disabled = value;
     $(id).setAttribute('aria-busy', String(value));
   }
@@ -166,20 +217,23 @@ function setBusy(value) {
   for (const button of $('calendar').querySelectorAll('button')) {
     button.disabled = value || button.dataset.date > localToday();
   }
+  for (const button of $('history-page').querySelectorAll('button')) button.disabled = value || !storage;
   updateSelectionControls();
   updateBulkCommit();
+  updateReviewControls();
 }
 
 async function openEditor(date, focusTarget) {
   if (!storage || busy || editing || date > localToday()) return;
   const requestId = ++editorRequest;
   try {
-    const latest = await storage.read(date);
+    const state = await storage.readState();
     if (requestId !== editorRequest) return;
+    const latest = state.records.find((record) => record.date === date) ?? null;
     original = latest;
     selectedDate = date;
     returnFocus = focusTarget;
-    applyRecord(date, latest);
+    applyState(state);
     editing = true;
     $('editor-heading').textContent = dateLabel(date);
     $('editor-current').textContent = latest ?
@@ -211,7 +265,7 @@ $('day-editor').addEventListener('close', () => {
   (target ?? document.querySelector('nav [aria-current="page"]')).focus();
 });
 
-for (const [dialog, form] of [['day-editor', 'day-form'], ['bulk-editor', 'bulk-form']]) {
+for (const [dialog, form] of [['day-editor', 'day-form'], ['bulk-editor', 'bulk-form'], ['review-editor', 'review-form']]) {
   $(dialog).addEventListener('cancel', (event) => {
     if (busy) event.preventDefault();
   });
@@ -239,21 +293,134 @@ function offerConflict(record, message, action) {
   $('resolve-conflict').focus();
 }
 
+function updateReviewControls() {
+  const approval = !pendingReview?.replaced.length || $('review-replace').checked;
+  $('save-review').disabled = busy || !pendingReview || !approval || !$('review-answer').value;
+  $('remove-review').disabled = busy || !pendingReview?.replaced.length || !approval;
+}
+
+async function openReview(requested) {
+  if (!storage || busy || editing) return;
+  const requestId = ++editorRequest;
+  try {
+    const state = await storage.readState();
+    if (requestId !== editorRequest) return;
+    applyState(state);
+    const span = expandReviewSpan(requested, state.reviews);
+    const replaced = state.reviews.filter((review) => overlaps(review, span));
+    const starts = startDates(state.records);
+    pendingReview = { span, replaced, expected: state };
+    reviewReturnSpan = `${requested.start}/${requested.end}`;
+    $('review-heading').textContent = `Review ${span.start} through ${span.end}`;
+    $('review-boundaries').textContent = span.start !== requested.start || span.end !== requested.end ?
+      'This review includes the full span of overlapping answers. Saving replaces all answers listed below, not just the originally selected interval.' :
+      'Your answer applies only to these fixed dates. It will not extend automatically.';
+    $('review-starts').textContent = `Recorded starts in this span: ${starts.filter((date) =>
+      span.start <= date && date <= span.end).join(', ') || 'none'}.`;
+    const list = document.createDocumentFragment();
+    for (const review of replaced) {
+      const item = document.createElement('li');
+      item.textContent = `${review.start} through ${review.end}: ${reviewDescription(review, starts)}.`;
+      list.append(item);
+    }
+    $('review-existing').replaceChildren(list);
+    $('review-replacement').hidden = replaced.length === 0;
+    $('review-replace').checked = false;
+    $('review-missing-warning').hidden = !replaced.some((review) => review.missingUnresolved);
+    const exact = replaced.length === 1 && replaced[0].start === span.start && replaced[0].end === span.end &&
+      !reviewNeedsAttention(replaced[0], starts) ? replaced[0] : null;
+    $('review-answer').value = exact?.answer ?? '';
+    $('review-add-date').value = '';
+    $('review-add-date').min = span.start;
+    $('review-add-date').max = span.end;
+    $('review-error').hidden = true;
+    editing = true;
+    setBusy(false);
+    $('review-editor').showModal();
+    $('review-answer').focus();
+  } catch (error) {
+    announce(error.message);
+  }
+}
+
+$('review-answer').addEventListener('change', updateReviewControls);
+$('review-replace').addEventListener('change', updateReviewControls);
+$('cancel-review').addEventListener('click', () => {
+  if (!busy) $('review-editor').close();
+});
+$('review-editor').addEventListener('close', () => {
+  editing = false;
+  pendingReview = undefined;
+  const target = [...$('history-page').querySelectorAll('button[data-span]')]
+    .find((button) => button.dataset.span === reviewReturnSpan);
+  (target ?? $('history-heading')).focus();
+});
+
+async function saveReview(answer) {
+  if (busy || !pendingReview) return;
+  if (pendingReview.replaced.length && !$('review-replace').checked) return;
+  setBusy(true);
+  $('review-error').hidden = true;
+  try {
+    const result = await storage.saveReview(pendingReview.span, answer, pendingReview.expected);
+    applyState(result);
+    if (result.reviewChanges.length) offerUndo(result);
+    announce(result.reviewChanges.length ?
+      `History review ${answer === null ? 'removed' : 'saved'}. Daily observations are unchanged. Undo is available until your next changed edit or reload.` :
+      'No changes to save.');
+    setBusy(false);
+    $('review-editor').close();
+  } catch (error) {
+    setBusy(false);
+    $('review-error').textContent = error.message;
+    $('review-error').hidden = false;
+  }
+}
+
+$('review-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  if (Object.hasOwn(REVIEW_LABELS, $('review-answer').value)) saveReview($('review-answer').value);
+});
+$('remove-review').addEventListener('click', () => saveReview(null));
+$('add-remembered-start').addEventListener('click', () => {
+  if (busy || !pendingReview) return;
+  const date = $('review-add-date').value;
+  try {
+    parseDate(date);
+    if (date < pendingReview.span.start || date > pendingReview.span.end || date > localToday()) {
+      throw new RangeError('Choose a date within the reviewed span, no later than today.');
+    }
+  } catch (error) {
+    $('review-error').textContent = error.message;
+    $('review-error').hidden = false;
+    $('review-add-date').focus();
+    return;
+  }
+  $('review-editor').addEventListener('close', async () => {
+    await openEditor(date, { page: 'history', date });
+    if (editing) $('period-start').checked = true;
+    announce('Record the remembered start explicitly, then review the updated history again. Your unsaved review answer has not been saved.');
+  }, { once: true });
+  $('review-editor').close();
+});
+
 function discardUndo() {
-  clearTimeout(undoTimer);
   undo = undefined;
   const hadFocus = document.activeElement === $('undo');
   $('undo-bar').hidden = true;
   if (hadFocus) document.querySelector('nav [aria-current="page"]').focus();
 }
 
-function offerUndo(changes) {
+function offerUndo(result) {
   discardUndo();
-  undo = { changes, expiresAt: Date.now() + 30000 };
-  $('undo-description').textContent = changes.length === 1 ?
+  const changes = result.changes.filter((change) => change.changed);
+  undo = {
+    changes, reviewChanges: result.reviewChanges,
+    reviewGuards: result.reviewGuards, startGuards: result.startGuards
+  };
+  $('undo-description').textContent = changes.length === 0 ? 'Changed history review.' : changes.length === 1 ?
     `Changed ${dateLabel(changes[0].date)}.` : `Changed ${changes.length} days.`;
   $('undo-bar').hidden = false;
-  undoTimer = setTimeout(discardUndo, 30000);
 }
 
 async function saveRecord(record) {
@@ -261,11 +428,12 @@ async function saveRecord(record) {
   setBusy(true);
   $('editor-error').hidden = true;
   try {
-    const change = await storage.replaceDay(selectedDate, record, original);
-    applyRecord(change.date, change.next);
-    if (change.changed) offerUndo([change]);
+    const result = await storage.replaceDay(selectedDate, record, original);
+    const change = result.changes[0];
+    applyState(result);
+    if (change.changed) offerUndo(result);
     announce(change.changed ?
-      `${record ? 'Saved' : 'Cleared'} ${dateLabel(change.date)}. Undo is available for 30 seconds.` :
+      `${record ? 'Saved' : 'Cleared'} ${dateLabel(change.date)}. Undo is available until your next changed edit or reload.` :
       'No changes to save.');
     setBusy(false);
     closeEditor();
@@ -399,12 +567,13 @@ async function saveBulk(edits) {
   setBusy(true);
   $('bulk-error').hidden = true;
   try {
-    const changes = await storage.replaceDays(edits);
-    applyChanges(changes);
+    const result = await storage.replaceDays(edits);
+    const { changes } = result;
+    applyState(result);
     const changed = changes.filter((change) => change.changed);
-    if (changed.length > 0) offerUndo(changed);
+    if (changed.length > 0) offerUndo(result);
     announce(changed.length > 0 ?
-      `Saved batch: ${changed.length} ${changed.length === 1 ? 'day' : 'days'} changed. Undo is available for 30 seconds.` :
+      `Saved batch: ${changed.length} ${changed.length === 1 ? 'day' : 'days'} changed. Undo is available until your next changed edit or reload.` :
       'No changes to save.');
     setBusy(false);
     cancelSelection();
@@ -437,8 +606,7 @@ $('refresh-records').addEventListener('click', async () => {
   if (busy || editing || !storage || !selectionMode) return;
   setBusy(true);
   try {
-    records = new Map((await storage.read()).map((record) => [record.date, record]));
-    renderRecords();
+    applyState(await storage.readState());
     clearSelectionError();
     announce('Calendar records refreshed. Review selected days, then choose an action again.');
     setBusy(false);
@@ -474,20 +642,13 @@ for (const button of document.querySelectorAll('[data-bulk-action]')) {
 
 $('undo').addEventListener('click', async () => {
   if (busy || editing || !undo) return;
-  if (Date.now() >= undo.expiresAt) {
-    discardUndo();
-    announce('Undo has expired.');
-    return;
-  }
   const { changes } = undo;
   setBusy(true);
   try {
-    const restored = await storage.replaceDays(changes.map((change) => ({
-      date: change.date, next: change.previous, expected: change.next
-    })));
-    applyChanges(restored);
+    const restored = await storage.restore(undo);
+    applyState(restored);
     discardUndo();
-    announce(changes.length === 1 ?
+    announce(changes.length === 0 ? 'Undid the history review edit.' : changes.length === 1 ?
       `Undid the edit to ${dateLabel(changes[0].date)}.` :
       `Undid the batch edit to ${changes.length} days.`);
   } catch (error) {
@@ -529,8 +690,7 @@ updateSelectionControls();
 announce('Loading local records...');
 try {
   storage = await openStorage();
-  records = new Map((await storage.read()).map((record) => [record.date, record]));
-  renderRecords();
+  applyState(await storage.readState());
   updateSelectionControls();
   announce('Local records ready.');
 } catch (error) {

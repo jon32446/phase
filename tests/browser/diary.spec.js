@@ -139,7 +139,7 @@ test('ordinary clear persists unknown, and Undo of creation removes only that da
   expect(await storedRecords(page)).toEqual([]);
 });
 
-test('Undo expires after 30 seconds; cancelled and unchanged edits do not replace it', async ({ page }) => {
+test('Undo survives elapsed time, navigation, cancelled and unchanged edits', async ({ page }) => {
   await start(page);
   await edit(page, '2026-11-02', 'medium');
   await day(page, '2026-11-03').click();
@@ -148,9 +148,12 @@ test('Undo expires after 30 seconds; cancelled and unchanged edits do not replac
   await expect(editor(page)).not.toBeVisible();
   await edit(page, '2026-11-02', 'medium');
   await expect(page.getByRole('status')).toHaveText('No changes to save.');
-  await page.clock.fastForward(30001);
-  await expect(page.getByRole('button', { name: 'Undo last edit' })).not.toBeVisible();
-  await expect(day(page, '2026-11-02')).toHaveAccessibleName(/Medium/);
+  await page.getByRole('button', { name: 'History', exact: true }).click();
+  await page.getByRole('button', { name: 'Calendar', exact: true }).click();
+  await page.clock.fastForward(3600000);
+  await expect(page.getByRole('button', { name: 'Undo last edit' })).toBeVisible();
+  await page.getByRole('button', { name: 'Undo last edit' }).click();
+  await expect(day(page, '2026-11-02')).toHaveAccessibleName(/Not recorded/);
 });
 
 test('aborted saves preserve committed data, the draft, and the previous Undo', async ({ page }) => {
@@ -323,6 +326,10 @@ test('runtime requests contain only static assets, no health data or external re
   await expect(page.locator('#bulk-editor')).not.toBeVisible();
   await page.getByRole('button', { name: 'Undo last edit' }).click();
   await page.getByRole('button', { name: 'History', exact: true }).click();
+  await page.locator('#open-span button').click();
+  await page.getByLabel('Start-history completeness').selectOption('missing');
+  await page.getByRole('button', { name: 'Save review', exact: true }).click();
+  await expect(page.locator('#review-editor')).not.toBeVisible();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.reload();
   await expect(page.getByRole('status')).toHaveText('Local records ready.');
@@ -332,7 +339,7 @@ test('runtime requests contain only static assets, no health data or external re
   for (const request of requests) {
     const url = new URL(request.url);
     expect(url.origin).toBe('http://127.0.0.1:4173');
-    expect(url.pathname).toMatch(/^\/phase\/(?:index\.html|styles\.css|src\/(?:app|dates|records|storage)\.js)?$/);
+    expect(url.pathname).toMatch(/^\/phase\/(?:index\.html|styles\.css|src\/(?:app|dates|records|storage|history)\.js)?$/);
     expect(url.search).toBe('');
     expect(url.hash).toBe('');
     expect(request.body).toBeNull();
@@ -539,7 +546,7 @@ test('a stale selected day prevents both partial saves and partial Undo', async 
   ]);
 });
 
-test('unchanged batches and cancelled conflicts do not replace or extend Undo', async ({ page }) => {
+test('unchanged batches and cancelled conflicts preserve session-only Undo', async ({ page }) => {
   await start(page);
   await edit(page, '2026-11-02', 'medium', true);
   await edit(page, '2026-11-03', 'medium', true);
@@ -552,8 +559,10 @@ test('unchanged batches and cancelled conflicts do not replace or extend Undo', 
   await expect(page.getByRole('status')).toHaveText('No changes to save.');
   await expect(page.locator('#undo-description')).toHaveText(previousUndo);
   await page.clock.fastForward(30001);
-  await expect(page.getByRole('button', { name: 'Undo last edit' })).not.toBeVisible();
-  expect(await storedRecords(page)).toHaveLength(2);
+  await expect(page.getByRole('button', { name: 'Undo last edit' })).toBeVisible();
+  await page.getByRole('button', { name: 'Undo last edit' }).click();
+  await expect(day(page, '2026-11-03')).toHaveAccessibleName(/Not recorded/);
+  expect(await storedRecords(page)).toHaveLength(1);
 });
 
 test('selection, conflicts, and direct saves support keyboard and touch', async ({ page }) => {

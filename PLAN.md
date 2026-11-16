@@ -63,9 +63,9 @@ Show existing values during selection, including mixed observations and unknown 
 
 Agreed bulk-interaction rules: the calendar is the review surface for conflict-free edits; do not open an unconditional preview modal. Only period-start conflicts open a prompt, showing affected dates with before/after values sorted by date. Require a separate unchecked-by-default approval for every conflicting start removal before enabling Save batch for the entire selection. Back to selection or Escape closes the prompt without saving and retains the selection; reopening resets removal approvals. Successful saves, including unchanged batches, exit selection mode and clear selection. Cancel selection or leaving Calendar also clears it. Failed saves retain the selection and any open conflict prompt. Check every selected record against its displayed snapshot inside the write transaction; stale-record failures offer an explicit calendar refresh, retaining selection without automatically retrying the action.
 
-Offer a short-lived, in-memory Undo for ordinary edits. Undo is not a persistent audit history and is not available after complete deletion.
+Offer one-step, session-only, in-memory Undo for ordinary edits, including history-review answers. Undo is not a persistent audit history and is not available after complete deletion.
 
-Agreed first-release interaction rules: weeks start on Monday. A conflicting edit offers explicit marker removal inside its preview rather than requiring a separate correction workflow; observation changes and separately authorised marker removals commit together. Clearing a day with a recorded start requires confirmation to remove both its observation and marker. Undo restores the latest changed ordinary edit atomically, including its marker, and expires after 30 seconds, the next successful changed edit, or reload. Undo retains only actually changed dates, not unchanged selections. Cancelled, failed, and unchanged edits do not replace Undo. There is no redo or persistent undo history; backup restore is outside ordinary-edit Undo.
+Agreed first-release interaction rules: weeks start on Monday. A conflicting edit offers explicit marker removal inside its preview rather than requiring a separate correction workflow; observation changes and separately authorised marker removals commit together. Clearing a day with a recorded start requires confirmation to remove both its observation and marker. Undo restores the latest changed ordinary edit atomically, including its marker and affected history reviews. It has no timeout and is replaced by the next successful changed edit; successful Undo, reload, successful backup restore, and complete deletion clear it. Undo retains only actually changed dates and affected review state, not unchanged selections or a recovery copy of the diary. Navigation, selection, cancelled edits, failed saves, and unchanged saves do not replace Undo. Undo checks affected records, reviews, and reviewed-start context before restoring anything, rejecting intervening changes without partial restoration. There is no redo or persistent undo history; backup restore is outside ordinary-edit Undo.
 
 ### History and settings
 
@@ -77,7 +77,11 @@ Provide neutral, dismissible check-ins where a gap in recorded starts may concea
 
 A check-in identifies the span being reviewed and lets the user confirm that all starts in that span are recorded, add remembered missing starts, report that one or more starts are missing but their dates are forgotten, or leave completeness unresolved because they are unsure. For a span since the latest start, confirming completeness means no further period has occurred through the reviewed date. Preserve daily observations unchanged unless the user explicitly edits them.
 
-Remember answers so the same answered span does not repeatedly prompt. A confirmation ends at the reviewed date; it does not establish completeness indefinitely. An unsure answer does not establish completeness, and dismissal is not confirmation. Prompt placement, repeat behaviour after uncertainty or dismissal, and detection rules remain to be designed.
+Remember answers so the same answered span does not repeatedly prompt. A confirmation ends at the reviewed date; it does not establish completeness indefinitely. An unsure answer does not establish completeness, and dismissal is not confirmation.
+
+Agreed review interaction: manual review actions live in History, between consecutive recorded starts and from the latest start through today when that span has elapsed days. Saved answers remain directly reachable for correction or removal even if later start corrections change the interval boundaries. Reviews are non-blocking; closing without saving makes no change, and unsure answers remain visibly unresolved without repeatedly opening a dialog. Remembered missing dates open the ordinary day editor for an explicit start and bleeding observation; the unsaved review answer is not saved. Automatic detection, placement outside History, and resurfacing after dismissal or uncertainty remain deferred pending detection-policy design.
+
+Every answer covers fixed dates. Adjacent spans may share a boundary date without replacing one another. When a requested review overlaps an existing answer beyond a shared boundary, expand the review to include the full span of every overlapping answer, including transitive overlaps. Show the final dates and all affected answers, and require unchecked-by-default approval before replacing or removing them. Do not silently drop warnings outside a newly requested subspan.
 
 Settings provides import/export, the privacy explanation, and a prominent red "Delete all data" action. Require explicit confirmation explaining that deletion cannot be undone. Delete all saved user data, clear in-memory state, and leave no health-record recovery copy.
 
@@ -103,9 +107,15 @@ Keep daily observation coverage distinct from start-history completeness. "Not r
 
 Record meaningful user statements about reviewed spans rather than a generic "exclude from calculations" flag: all starts are recorded through the reviewed date, or one or more starts are known to be missing within the span but cannot be dated. If dates are remembered, add the actual starts instead. Uncertainty leaves completeness unresolved.
 
-Recalculate intervals and summaries from current records whenever starts are added, corrected, or removed. For example, adding a remembered start between two existing starts replaces the old interval with the two newly derived intervals; no inferred start or saved cycle object is needed. The representation of reviewed spans and how later corrections affect their statements remain to be agreed; do not silently transfer an old statement to different history.
+Recalculate intervals and summaries from current records whenever starts are added, corrected, or removed. For example, adding a remembered start between two existing starts replaces the old interval with the two newly derived intervals; no inferred start or saved cycle object is needed. Do not silently transfer an old statement to different history.
+
+Agreed reviewed-span semantics: store each mutable answer separately with fixed inclusive start/end dates, recorded-start context, an explicit needs-review state, and whether reported missing starts remain unresolved. Adding, removing, or moving any start within the span, including either boundary, marks it as needing review in the same transaction as the day edit. Bleeding-only edits and start changes outside the span leave the answer intact. Keep the prior answer visibly marked as needing review, but update its stored start context to the current starts rather than retaining deleted or superseded starts; the old state exists only in ordinary in-memory Undo. Undo restores both the day changes and their review effects atomically. Merely returning starts to an earlier arrangement through another edit does not reconfirm an answer.
+
+A reported missing-start span continues excluding all overlapping intervals until explicitly resolved or removed. Adding a remembered start does not establish that no others are missing. Re-answering Unsure preserves any unresolved missing-start report in the replaced span; explicitly confirming that all starts are now recorded clears it. Removal is an explicit, undoable deletion of the listed statements and their warnings, not a confirmation.
 
 Distinguish provisionally usable intervals with no evidence of missing starts, potentially incomplete spans awaiting review, confirmed missing-start spans, and confirmed complete spans. Do not use an interval known to contain missing starts as a single cycle in usable-cycle summaries or estimates. Retain the actual length of a confirmed complete interval even when unusually long; confirmation is not permission to silently discard it. Whether to withhold estimates while a potentially incomplete span is unresolved remains an open policy decision.
+
+For the implemented descriptive summary, include confirmed complete intervals and provisional intervals separately counted, and show their actual minimum and maximum lengths. An interval is confirmed complete only when a current complete answer covers its full span. Any overlapping unresolved missing-start report excludes it; otherwise an overlapping unsure or needs-review answer makes it unresolved and excludes it. With no such answer, it is provisional, not proof of a complete cycle. This descriptive-summary rule does not settle forecast eligibility or automatic detection thresholds.
 
 Detect possible missing history to ask a question, not to establish that a period must have occurred. Consider both historical intervals and the open span since the latest start. Detection may use the person's recorded cycle lengths when enough history exists, but needs a transparent fallback when history is limited. Exact triggers remain open; no fixed example duration is an approved threshold or a medical cutoff. Do not infer the number or dates of missed starts.
 
@@ -150,7 +160,7 @@ Use a restrictive Content Security Policy compatible with the static/offline des
 5. Add validated backup/restore, CSV export, and complete deletion.
 6. Add offline assets, update behaviour, accessibility checks, and Pages-path validation; review README claims against actual behaviour.
 
-Steps 1-3 are implemented. Step 4 is next: the start list exists, but cycle summaries, start-history completeness check-ins, missing-history detection, and predictions remain pending. Steps 5-6 remain pending, with root/subpath hosting and CSP checks already in place. The acceptance checklist below tracks release-wide completion.
+Steps 1-3 are implemented. Step 4 is partially implemented: derived interval history, descriptive usable-length summaries, manual start-history reviews, versioned review storage, correction invalidation, and atomic one-step session-only Undo are in place. Agree and implement automatic missing-history detection/check-in rules and prediction policy next; no automatic triggers or forecasts exist yet. Steps 5-6 remain pending, with root/subpath hosting and CSP checks already in place. The acceptance checklist below tracks release-wide completion.
 
 ## Validation and tooling
 
@@ -164,11 +174,12 @@ Run browser tests against a local static server at both the root and a repositor
 - [x] Historical single-day edits persist after reload.
 - [x] Cross-month bulk edits preserve selection and commit atomically.
 - [x] Bulk edits cannot silently create, remove, or invalidate period starts.
-- [ ] Corrections and date arithmetic recalculate tested intervals without inventing starts or retaining obsolete derived cycles.
-- [ ] Sparse daily observations do not by themselves disqualify period-start history.
-- [ ] History check-ins distinguish confirmed complete, known missing, and unresolved start history without changing daily observations or repeatedly questioning an answered span.
-- [ ] Known missing-start intervals are not treated as single usable cycles; confirmed long intervals retain their actual length.
-- [ ] Reviewed-span corrections and persistence follow agreed, tested rules.
+- [x] Corrections and date arithmetic recalculate tested intervals without inventing starts or retaining obsolete derived cycles.
+- [x] Sparse daily observations do not by themselves disqualify period-start history.
+- [x] Manual history reviews distinguish confirmed complete, known missing, and unresolved start history without changing daily observations or repeatedly questioning an answered span.
+- [ ] Automatic history check-ins use agreed detection and resurfacing rules without blocking ordinary logging.
+- [x] Known missing-start intervals are not treated as single usable cycles; confirmed long intervals retain their actual length.
+- [x] Reviewed-span corrections and persistence follow agreed, tested rules.
 - [ ] Estimates handle insufficient, incomplete, and variable history honestly.
 - [ ] JSON export/restore round-trips the supported user data.
 - [ ] Invalid imports and failed saves leave existing data intact.
@@ -183,8 +194,7 @@ Run browser tests against a local static server at both the root and a repositor
 ## Decisions to resolve before dependent implementation
 
 - Import merge/replace behaviour and how users resolve conflicting dates.
-- History check-in placement, wording, and repeat behaviour after uncertainty or dismissal.
-- Representation and boundaries of reviewed spans, overlapping answers, and how start corrections and Undo affect them.
+- Automatic history check-in placement, wording, and resurfacing behaviour after uncertainty or dismissal; manual History reviews and fixed-span correction semantics are agreed and implemented.
 - Missing-history detection triggers, sufficient personal history, and limited-history fallback.
 - Whether potentially incomplete spans awaiting review withhold estimates, and how uncertainty appears in summaries.
 - Prediction baseline, minimum usable history, history length, weighting, estimated-window rules, and wording.

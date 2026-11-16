@@ -14,7 +14,7 @@
     "test": "npm run test:unit && npm run test:browser",
     "test:unit": "node --test tests/*.test.js",
     "test:browser": "playwright test",
-    "check": "node --check src/app.js && node --check src/dates.js && node --check src/records.js && node --check src/storage.js && node --check tests/server.js && node --check tests/browser/diary.spec.js && node --check playwright.config.js"
+    "check": "node --check src/app.js && node --check src/dates.js && node --check src/records.js && node --check src/storage.js && node --check src/history.js && node --check tests/server.js && node --check tests/browser/diary.spec.js && node --check tests/browser/history.spec.js && node --check playwright.config.js"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1"
