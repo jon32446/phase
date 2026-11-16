@@ -10,3 +10,16 @@
 - Ask before installing or upgrading packages, downloading browsers, or installing system dependencies. Prefer project-local tooling and reuse existing browser binaries where compatible.
 - Ask before resolving open UX, behavioural, or prediction-policy decisions; do not silently turn proposals in PLAN.md into requirements.
 - Use synthetic health data in tests and examples. Never put real user records in logs, URLs, screenshots, issues, or committed fixtures.
+
+## App copy
+
+Write warm, direct, concrete copy that helps someone use their diary. Avoid "X, not Y" contrast slogans and editorial taglines. Prefer short sentences to semicolon-linked explanations, and rewrite the thought where needed instead of mechanically swapping punctuation.
+
+| Avoid | Use |
+|---|---|
+| "An estimate, not a promise." | "Your next period may start around these dates. The timing can vary." |
+| "A diary, not a diagnosis." | "Phase cannot diagnose health conditions. Do not rely on its estimates for contraception." |
+| "A blank day means not recorded, not no bleeding." | "Blank days have no entry. Choose 'No bleeding' when you want to record that observation." |
+| "Exports are unencrypted; store them securely." | "Keep this unencrypted file somewhere secure." |
+
+Keep ordinary negatives such as "I'm not sure", "Your change was not saved", and "cannot be undone". Preserve uncertainty, privacy caveats, and explicit data-loss and contraception warnings. Never replace a precise warning with reassuring language that weakens its meaning.

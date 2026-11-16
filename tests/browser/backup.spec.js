@@ -51,7 +51,7 @@ async function ready(page, path = '/') {
   await page.reload();
   await expect(page.locator('#status')).toHaveText('Local records ready.');
   await page.locator('#calendar button[data-date="2026-11-07"]').click();
-  await page.getByLabel('Bleeding', { exact: true }).selectOption('light');
+  await page.getByRole('radio', { name: 'Light', exact: true }).check();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.locator('#day-editor')).not.toBeVisible();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -90,6 +90,7 @@ for (const path of ['/', '/phase/']) {
     const text = await readFile(await json.path(), 'utf8');
     expect(JSON.parse(text)).toEqual({ format: 'phase-backup', version: 1, ...expected });
     const csvEvent = page.waitForEvent('download');
+    await page.getByText('Need a spreadsheet instead?', { exact: true }).click();
     await page.locator('#export-csv').click();
     const csv = await csvEvent;
     expect(csv.suggestedFilename()).toBe('phase-observations.csv');
@@ -126,8 +127,8 @@ for (const path of ['/', '/phase/']) {
     await expect(page.locator('#status')).toHaveText('Local records ready.');
     expect(await state(page)).toEqual(expected);
     await page.getByRole('button', { name: 'History', exact: true }).click();
-    await expect(page.locator('#history-reviews')).toContainText('missing starts remain unresolved');
-    await expect(page.locator('#history-reviews')).toContainText('needs review');
+    await expect(page.locator('#history-reviews')).toContainText('Please check whether any are still missing');
+    await expect(page.locator('#history-reviews')).toContainText('recorded starts have changed since this answer');
     await expect(page.locator('#history-checkins [data-checkin-id="open:2026-11-05"]')).toHaveCount(0);
   });
 }

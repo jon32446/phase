@@ -116,10 +116,7 @@ export function deriveInsights(records, reviews, dismissals, today) {
         'One or more of the six most recent recorded intervals need history review.'
     };
   } else if (eligible.length < MIN_HISTORY) {
-    forecast = {
-      status: 'insufficient',
-      reason: `At least three usable completed intervals are needed; ${eligible.length} available among the latest six.`
-    };
+    forecast = { status: 'insufficient' };
   } else {
     const lengths = eligible.map((interval) => interval.days);
     try {

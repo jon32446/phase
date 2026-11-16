@@ -13,7 +13,7 @@ async function start(page, path = '/') {
 async function edit(page, date, bleeding, periodStart = false) {
   await day(page, date).click();
   await expect(editor(page)).toBeVisible();
-  await page.getByLabel('Bleeding', { exact: true }).selectOption(bleeding);
+  await page.locator(`#bleeding input[value="${bleeding}"]`).check();
   await page.getByLabel('Period started this day').setChecked(periodStart);
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(editor(page)).not.toBeVisible();
@@ -68,7 +68,7 @@ for (const path of ['/', '/phase/']) {
     const historyDate = page.locator('#history button');
     await expect(historyDate).toHaveCount(1);
     await historyDate.click();
-    await page.getByLabel('Bleeding', { exact: true }).selectOption('light');
+    await page.getByRole('radio', { name: 'Light', exact: true }).check();
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(editor(page)).not.toBeVisible();
     await expect(page.locator('#history button')).toHaveText(/Light/);
@@ -85,14 +85,14 @@ test('start conflicts require explicit resolution and Undo restores both fields'
   await start(page);
   await edit(page, '2026-11-02', 'heavy', true);
   await day(page, '2026-11-02').click();
-  await page.getByLabel('Bleeding', { exact: true }).selectOption('spotting');
+  await page.getByRole('radio', { name: 'Spotting', exact: true }).check();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Remove period start and save' })).toBeFocused();
   expect(await storedRecords(page)).toEqual([
     { date: '2026-11-02', bleeding: 'heavy', periodStart: true }
   ]);
   await page.getByRole('button', { name: 'Keep editing' }).click();
-  await expect(page.getByLabel('Bleeding', { exact: true })).toBeFocused();
+  await expect(page.getByRole('radio', { name: 'Spotting', exact: true })).toBeFocused();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await page.getByRole('button', { name: 'Remove period start and save' }).click();
   await expect(editor(page)).not.toBeVisible();
@@ -143,7 +143,7 @@ test('Undo survives elapsed time, navigation, cancelled and unchanged edits', as
   await start(page);
   await edit(page, '2026-11-02', 'medium');
   await day(page, '2026-11-03').click();
-  await page.getByLabel('Bleeding', { exact: true }).selectOption('light');
+  await page.getByRole('radio', { name: 'Light', exact: true }).check();
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(editor(page)).not.toBeVisible();
   await edit(page, '2026-11-02', 'medium');
@@ -156,11 +156,58 @@ test('Undo survives elapsed time, navigation, cancelled and unchanged edits', as
   await expect(day(page, '2026-11-02')).toHaveAccessibleName(/Not recorded/);
 });
 
+test('save confirmations dismiss independently while contextual header Undo remains available', async ({ page }) => {
+  await start(page);
+  await edit(page, '2026-11-02', 'medium', true);
+  const headerUndo = page.getByRole('button', { name: 'Undo last edit', exact: true });
+  await expect(page.locator('#save-notice')).toBeVisible();
+  await expect(headerUndo).toHaveAccessibleDescription('Recorded medium flow for 2 Nov 2026. Period start recorded.');
+  const viewport = page.viewportSize();
+  for (const width of [320, 393, 768, 1024]) {
+    await page.setViewportSize({ width, height: 800 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    for (const control of [headerUndo, page.locator('#undo-notice'), page.locator('#dismiss-save')]) {
+      const box = await control.boundingBox();
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+  }
+  await page.setViewportSize(viewport);
+  await page.getByRole('button', { name: 'Dismiss notification' }).click();
+  await expect(page.locator('#save-notice')).toBeHidden();
+  await expect(headerUndo).toBeFocused();
+  await expect(day(page, '2026-11-02')).toHaveAccessibleName(/Medium, period start/);
+  await page.clock.fastForward(3600000);
+  await headerUndo.click();
+  await expect(day(page, '2026-11-02')).toHaveAccessibleName(/Not recorded/);
+  await expect(headerUndo).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Calendar', exact: true })).toBeFocused();
+
+  await edit(page, '2026-11-03', 'spotting');
+  await page.getByRole('button', { name: 'History', exact: true }).click();
+  await expect(page.locator('#save-notice')).toBeHidden();
+  await expect(headerUndo).toHaveAccessibleDescription('Recorded spotting for 3 Nov 2026.');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await expect(headerUndo).toBeVisible();
+  await page.getByRole('button', { name: 'Calendar', exact: true }).click();
+  await expect(page.locator('#save-notice')).toBeHidden();
+  await edit(page, '2026-11-04', 'none');
+  await expect(page.locator('#save-notice')).toBeVisible();
+  await expect(headerUndo).toHaveAccessibleDescription('Recorded no bleeding for 4 Nov 2026.');
+  await page.getByRole('button', { name: 'Undo this edit', exact: true }).click();
+  await expect(page.locator('#save-notice')).toBeHidden();
+  await expect(headerUndo).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Calendar', exact: true })).toBeFocused();
+  await expect(day(page, '2026-11-04')).toHaveAccessibleName(/Not recorded/);
+  await expect(day(page, '2026-11-03')).toHaveAccessibleName(/Spotting/);
+});
+
 test('aborted saves preserve committed data, the draft, and the previous Undo', async ({ page }) => {
   await start(page);
   await edit(page, '2026-11-02', 'medium', true);
   await day(page, '2026-11-02').click();
-  await page.getByLabel('Bleeding', { exact: true }).selectOption('heavy');
+  await page.getByRole('radio', { name: 'Heavy', exact: true }).check();
   await page.evaluate(() => {
     const put = IDBObjectStore.prototype.put;
     IDBObjectStore.prototype.put = function (...args) {
@@ -172,7 +219,7 @@ test('aborted saves preserve committed data, the draft, and the previous Undo', 
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.locator('#editor-error')).toHaveText(/not saved/);
   await expect(editor(page)).toBeVisible();
-  await expect(page.getByLabel('Bleeding', { exact: true })).toHaveValue('heavy');
+  await expect(page.getByRole('radio', { name: 'Heavy', exact: true })).toBeChecked();
   await expect(page.getByLabel('Period started this day')).toBeChecked();
   expect(await storedRecords(page)).toEqual([
     { date: '2026-11-02', bleeding: 'medium', periodStart: true }
@@ -216,7 +263,7 @@ test('stale edits and Undo do not overwrite another tab-like change', async ({ p
       await store.read('2026-11-02'));
     store.db.close();
   });
-  await page.getByLabel('Bleeding', { exact: true }).selectOption('heavy');
+  await page.getByRole('radio', { name: 'Heavy', exact: true }).check();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.locator('#editor-error')).toHaveText(/changed elsewhere/);
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -224,7 +271,7 @@ test('stale edits and Undo do not overwrite another tab-like change', async ({ p
   await page.getByRole('button', { name: 'Undo last edit' }).click();
   await expect(page.getByRole('status')).toHaveText(/changed elsewhere/);
   await day(page, '2026-11-02').click();
-  await expect(page.getByLabel('Bleeding', { exact: true })).toHaveValue('medium');
+  await expect(page.getByRole('radio', { name: 'Medium', exact: true })).toBeChecked();
   await expect(page.getByLabel('Period started this day')).toBeChecked();
 });
 
@@ -280,24 +327,26 @@ test('day editor works by keyboard, contains focus, and returns it on Escape and
   await start(page);
   await day(page, '2026-11-02').focus();
   await page.keyboard.press('Enter');
-  await expect(page.getByLabel('Bleeding', { exact: true })).toBeFocused();
+  await expect(page.getByRole('radio', { name: 'No bleeding', exact: true })).toBeFocused();
   await page.getByRole('button', { name: 'Save', exact: true }).focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('#editor-error')).toHaveText(/Choose a bleeding observation/);
-  await expect(page.getByLabel('Bleeding', { exact: true })).toBeFocused();
+  await expect(page.getByRole('radio', { name: 'No bleeding', exact: true })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(editor(page)).not.toBeVisible();
   await expect(day(page, '2026-11-02')).toBeFocused();
   await page.keyboard.press('Enter');
-  await page.keyboard.press('m');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
   await page.keyboard.press('Tab');
   await expect(page.getByLabel('Period started this day')).toBeFocused();
   await page.keyboard.press('Space');
-  await page.getByRole('button', { name: 'Cancel', exact: true }).focus();
+  await page.getByRole('button', { name: 'Save', exact: true }).focus();
   await page.keyboard.press('Tab');
-  await expect(page.getByLabel('Bleeding', { exact: true })).toBeFocused();
-  await page.keyboard.press('Shift+Tab');
   await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeFocused();
   await page.getByRole('button', { name: 'Save', exact: true }).focus();
   await page.keyboard.press('Enter');
   await expect(editor(page)).not.toBeVisible();
@@ -327,7 +376,7 @@ test('runtime requests contain only static assets, no health data or external re
   await page.getByRole('button', { name: 'Undo last edit' }).click();
   await page.getByRole('button', { name: 'History', exact: true }).click();
   await page.locator('#open-span button').click();
-  await page.getByLabel('Start-history completeness').selectOption('missing');
+  await page.locator('#review-answer input[value="missing"]').check();
   await page.getByRole('button', { name: 'Save review', exact: true }).click();
   await expect(page.locator('#review-editor')).not.toBeVisible();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -386,22 +435,53 @@ test('runtime requests contain only static assets, no health data or external re
 });
 
 test('mobile/touch controls fit the viewport and editor supports a touch workflow', async ({ page }) => {
-  await page.setViewportSize({ width: 320, height: 640 });
   await start(page);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  for (const locator of [day(page, '2026-11-02'), page.getByRole('button', { name: 'Calendar', exact: true })]) {
-    const box = await locator.boundingBox();
-    expect(box.width).toBeGreaterThanOrEqual(44);
-    expect(box.height).toBeGreaterThanOrEqual(44);
+  for (const width of [320, 360, 393, 430]) {
+    await page.setViewportSize({ width, height: 640 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    for (const locator of [day(page, '2026-11-02'), page.getByRole('button', { name: 'Calendar', exact: true })]) {
+      const box = await locator.boundingBox();
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
   }
+  await page.setViewportSize({ width: 320, height: 640 });
   if (test.info().project.name === 'mobile-chromium') await day(page, '2026-11-02').tap();
   else await day(page, '2026-11-02').click();
-  await page.getByLabel('Bleeding', { exact: true }).selectOption('light');
+  await page.getByRole('radio', { name: 'Light', exact: true }).check();
   if (test.info().project.name === 'mobile-chromium') {
     await page.getByRole('button', { name: 'Save', exact: true }).tap();
   } else await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(editor(page)).not.toBeVisible();
   await expect(day(page, '2026-11-02')).toHaveAccessibleName(/Light$/);
+});
+
+test('Log today returns from an older month and keeps a new day blank until saved', async ({ page }) => {
+  await start(page);
+  await page.getByRole('button', { name: 'Previous month' }).click();
+  await page.getByRole('button', { name: 'Log today', exact: true }).click();
+  await expect(page.locator('#month-heading')).toHaveText('November 2026');
+  await expect(page.locator('#editor-heading')).toHaveText('8 Nov 2026');
+  await expect(page.locator('#bleeding input:checked')).toHaveCount(0);
+  await expect(page.locator('#clear-day')).toBeHidden();
+  for (const option of await page.locator('.flow-option').all()) {
+    const box = await option.boundingBox();
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+  }
+  await page.getByRole('radio', { name: 'No bleeding', exact: true }).check();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  expect(await storedRecords(page)).toEqual([]);
+  await expect(day(page, '2026-11-08')).toBeFocused();
+  await page.getByRole('button', { name: 'Log today', exact: true }).click();
+  await page.getByRole('radio', { name: 'No bleeding', exact: true }).check();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(day(page, '2026-11-08')).toHaveAccessibleName(/None$/);
+  await expect(day(page, '2026-11-07')).toHaveAccessibleName(/Not recorded/);
+  await expect(day(page, '2026-11-08').locator('.day-value svg')).toHaveCount(1);
+  await expect(day(page, '2026-11-07').locator('.day-value svg')).toHaveCount(0);
+  await page.locator('#undo').click();
+  await expect(day(page, '2026-11-08')).toHaveAccessibleName(/Not recorded/);
 });
 
 for (const path of ['/', '/phase/']) {
@@ -413,7 +493,7 @@ for (const path of ['/', '/phase/']) {
     await expect(page.locator('#selection-count')).toHaveText('2 days selected');
     await expect(day(page, '2026-11-03')).toHaveAccessibleName(/Medium, period start/);
     await expect(day(page, '2026-11-03')).toHaveAttribute('aria-pressed', 'true');
-    await expect(day(page, '2026-11-03').locator('.day-selection')).toHaveText('x');
+    await expect(day(page, '2026-11-03').locator('.day-selection')).toBeVisible();
     await expect(day(page, '2026-11-09')).toBeDisabled();
     await page.getByRole('button', { name: 'Previous month' }).click();
     await day(page, '2026-10-31').click();
@@ -451,7 +531,7 @@ for (const action of ['none', 'spotting', 'clear']) {
     const before = await storedRecords(page);
     await selectDays(page, ['2026-11-02', '2026-11-03', '2026-11-04']);
     await previewBulk(page, action);
-    await expect(page.locator('#bulk-editor')).toHaveAccessibleName('Resolve period-start conflicts');
+    await expect(page.locator('#bulk-editor')).toHaveAccessibleName('Remove these period starts?');
     await expect(page.locator('#bulk-preview li')).toHaveCount(2);
     await expect(page.locator('#bulk-preview li[data-date="2026-11-04"]')).toHaveCount(0);
     await expect(page.locator('#bulk-summary')).toContainText('for 3 days. 2 period starts');
@@ -608,7 +688,7 @@ test('selection, conflicts, and direct saves support keyboard and touch', async 
   await edit(page, '2026-11-02', 'medium', true);
   await page.getByRole('button', { name: 'Select days', exact: true }).focus();
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('button', { name: 'Cancel selection' })).toBeFocused();
+  await expect(day(page, '2026-11-08')).toBeFocused();
   await expect(page.locator('[data-bulk-action="light"]')).toBeDisabled();
   await day(page, '2026-11-02').focus();
   await page.keyboard.press('Space');

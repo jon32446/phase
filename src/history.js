@@ -3,7 +3,7 @@ import { dayDifference, parseDate } from './dates.js';
 export const HISTORY_VERSION = 1;
 export const REVIEW_LABELS = Object.freeze({
   complete: 'All starts recorded',
-  missing: 'Starts missing; dates forgotten',
+  missing: "Some starts are missing, and I can't remember their dates",
   unsure: 'Unsure'
 });
 

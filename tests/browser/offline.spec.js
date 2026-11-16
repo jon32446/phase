@@ -44,7 +44,7 @@ for (const path of ['/', '/phase/']) {
     await page.reload();
     await expect(page.locator('#status')).toHaveText('Local records ready.');
     await day(page).click();
-    await page.getByLabel('Bleeding', { exact: true }).selectOption('medium');
+    await page.getByRole('radio', { name: 'Medium', exact: true }).check();
     await page.getByLabel('Period started this day').check();
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.locator('#day-editor')).not.toBeVisible();
@@ -52,7 +52,7 @@ for (const path of ['/', '/phase/']) {
     await expect(day(page)).toHaveAccessibleName(/Medium, period start/);
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     const downloaded = page.waitForEvent('download');
-    await page.getByRole('button', { name: 'Export JSON backup', exact: true }).click();
+    await page.getByRole('button', { name: 'Save a backup', exact: true }).click();
     expect((await downloaded).suggestedFilename()).toBe('phase-backup.json');
     await page.locator('#import-file').setInputFiles({
       name: 'synthetic.json', mimeType: 'application/json',
@@ -91,14 +91,14 @@ for (const path of ['/', '/phase/']) {
   test(`restart is explicit, guarded, and preserves another window under ${path}`, async ({ page, context }) => {
     await ready(page, path);
     await day(page).click();
-    await page.getByLabel('Bleeding', { exact: true }).selectOption('light');
+    await page.getByRole('radio', { name: 'Light', exact: true }).check();
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.locator('#undo-bar')).toBeVisible();
     const other = await context.newPage();
     await other.goto(path);
     await expect(other.locator('#status')).toHaveText('Local records ready.');
     await day(other).click();
-    await other.getByLabel('Bleeding', { exact: true }).selectOption('heavy');
+    await other.getByRole('radio', { name: 'Heavy', exact: true }).check();
     await other.evaluate(() => { window.survivedUpdate = true; });
     await page.evaluate(() => { window.beforeUpdate = true; });
 
@@ -139,7 +139,7 @@ for (const path of ['/', '/phase/']) {
     expect(await page.evaluate(() => window.beforeUpdate)).toBeUndefined();
     await expect(day(page)).toHaveAccessibleName(/Light, period start/);
     expect(await other.evaluate(() => window.survivedUpdate)).toBe(true);
-    await expect(other.getByLabel('Bleeding', { exact: true })).toHaveValue('heavy');
+    await expect(other.getByRole('radio', { name: 'Heavy', exact: true })).toBeChecked();
     expect(await page.evaluate(() => caches.keys())).toHaveLength(2);
     await context.setOffline(true);
     // The older window retains its draft. Its normal stale-write guard still applies.
@@ -147,7 +147,7 @@ for (const path of ['/', '/phase/']) {
     await expect(other.locator('#editor-error')).toBeVisible();
     await other.getByRole('button', { name: 'Cancel', exact: true }).click();
     await day(other).click();
-    await other.getByLabel('Bleeding', { exact: true }).selectOption('heavy');
+    await other.getByRole('radio', { name: 'Heavy', exact: true }).check();
     await other.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(day(other)).toHaveAccessibleName(/Heavy, period start/);
     await other.close();
@@ -160,7 +160,7 @@ for (const path of ['/', '/phase/']) {
 test('returning to Phase checks for an update without reloading or clearing Undo', async ({ page }) => {
   await ready(page);
   await day(page).click();
-  await page.getByLabel('Bleeding', { exact: true }).selectOption('light');
+  await page.getByRole('radio', { name: 'Light', exact: true }).check();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.locator('#undo-bar')).toBeVisible();
   await page.evaluate(() => {
@@ -218,7 +218,7 @@ test('failed update installation preserves the current offline shell', async ({ 
       }));
     }
   });
-  await expect(page.locator('#offline-status')).toContainText('saved offline version is still available');
+  await expect(page.locator('#offline-status')).toContainText('You can still use the saved offline version');
   await expect(page.locator('#update-notice')).not.toBeVisible();
   expect(await page.evaluate(() => caches.keys())).toHaveLength(1);
   await context.setOffline(true);
@@ -234,7 +234,7 @@ test('failed first-time caching leaves the diary usable and retries when returni
   expect(await page.evaluate(() => caches.keys())).toEqual([]);
   await context.addCookies([{ name: 'phase-test-version', value: '2', url: baseURL }]);
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-  await expect(page.locator('#offline-status')).toContainText('Available offline');
+  await expect(page.locator('#offline-status')).toContainText('Ready to use offline');
   await expect(page.locator('#update-notice')).not.toBeVisible();
   await context.setOffline(true);
   await page.reload();

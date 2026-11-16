@@ -9,7 +9,9 @@ import { createBackup, createCSV, parseBackup } from './backup.js';
 import { setupOffline } from './offline.js';
 
 const $ = (id) => document.getElementById(id);
-const symbols = { none: '0', spotting: 'S', light: 'L', medium: 'M', heavy: 'H' };
+const diaryDates = new Intl.DateTimeFormat(undefined, {
+  day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC'
+});
 const resetChannel = globalThis.BroadcastChannel ? new BroadcastChannel('phase-diary-reset') : null;
 resetChannel?.addEventListener('message', (event) => {
   if (event.data === 'reset') location.reload();
@@ -41,8 +43,39 @@ new MutationObserver(refreshUpdate).observe(document.body, {
   subtree: true, attributes: true, attributeFilter: ['open']
 });
 
-function announce(message) {
+function announce(message, quiet = false) {
   $('status').textContent = message;
+  $('status').classList.toggle('quiet', quiet);
+}
+
+function icon(name, className = '') {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', `icon ${className}`.trim());
+  svg.setAttribute('aria-hidden', 'true');
+  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+  use.setAttribute('href', `#icon-${name}`);
+  svg.append(use);
+  return svg;
+}
+
+function shortDate(date) {
+  return diaryDates.format(parseDate(date));
+}
+
+function dateRange(start, end) {
+  return diaryDates.formatRange(parseDate(start), parseDate(end));
+}
+
+function choice(id) {
+  return $(id).querySelector('input:checked')?.value ?? '';
+}
+
+function setChoice(id, value) {
+  for (const input of $(id).querySelectorAll('input')) input.checked = input.value === value;
+}
+
+function focusChoice(id) {
+  ($(id).querySelector('input:checked') ?? $(id).querySelector('input')).focus();
 }
 
 function renderCalendar() {
@@ -70,16 +103,26 @@ function renderCalendar() {
     button.disabled = date > today || busy;
     if (selectionMode) button.setAttribute('aria-pressed', String(selectedDates.has(date)));
     const number = document.createElement('span');
+    number.className = 'day-number';
     number.textContent = String(Number(date.slice(-2)));
     const value = document.createElement('span');
     value.className = 'day-value';
     value.setAttribute('aria-hidden', 'true');
-    value.textContent = `${record ? symbols[record.bleeding] : '-'}${record?.periodStart ? ' *' : ''}`;
+    if (record?.bleeding === 'none') value.append(icon('none'));
+    else if (record?.bleeding === 'spotting') {
+      const spots = document.createElement('span');
+      spots.className = 'spotting-mark';
+      value.append(spots);
+    } else {
+      const drops = { light: 1, medium: 2, heavy: 3 }[record?.bleeding] ?? 0;
+      for (let index = 0; index < drops; index++) value.append(icon('drop'));
+    }
     button.append(number, value);
+    if (record?.periodStart) button.append(icon('start', 'day-start'));
     if (selectionMode && selectedDates.has(date)) {
       const marker = document.createElement('span');
       marker.className = 'day-selection';
-      marker.textContent = 'x';
+      marker.append(icon('check'));
       marker.setAttribute('aria-hidden', 'true');
       button.append(marker);
     }
@@ -107,7 +150,15 @@ function renderHistory() {
     const button = document.createElement('button');
     button.type = 'button';
     button.dataset.date = record.date;
-    button.textContent = `${dateLabel(record.date)} - ${BLEEDING_LABELS[record.bleeding]}`;
+    button.setAttribute('aria-label', `${shortDate(record.date)} - ${BLEEDING_LABELS[record.bleeding]} flow. Edit period start`);
+    const label = document.createElement('span');
+    label.className = 'start-date';
+    const date = document.createElement('span');
+    date.textContent = shortDate(record.date);
+    const observation = document.createElement('small');
+    observation.textContent = `${BLEEDING_LABELS[record.bleeding]} flow`;
+    label.append(date, observation);
+    button.append(label, icon('arrow'));
     button.addEventListener('click', () => openEditor(record.date, { page: 'history', date: record.date }));
     item.append(button);
     fragment.append(item);
@@ -119,29 +170,44 @@ function renderHistory() {
   renderForecast(insights.forecast);
   renderCheckins(insights.checkins);
   const { summary } = history;
-  $('cycle-summary').textContent = summary.count ?
-    `${summary.count} usable recorded ${summary.count === 1 ? 'interval' : 'intervals'}: ${summary.confirmed} confirmed complete, ${summary.provisional} provisional. Length range: ${summary.min}-${summary.max} days.` :
-    'No usable completed intervals yet. Record at least two starts; review any unresolved or missing history.';
+  $('cycle-summary').replaceChildren();
+  const summaryValue = document.createElement('strong');
+  summaryValue.textContent = summary.count ?
+    `${summary.min === summary.max ? summary.min : `${summary.min}-${summary.max}`} days between starts` :
+    'A little more history will help.';
+  const summaryContext = document.createElement('small');
+  summaryContext.textContent = summary.count ?
+    `From ${summary.count} usable recorded ${summary.count === 1 ? 'interval' : 'intervals'}: ${summary.confirmed} confirmed complete, ${summary.provisional} provisional.` :
+    'No usable completed intervals yet. Log at least two period starts, or check any missing or uncertain history.';
+  $('cycle-summary').append(summaryValue, summaryContext);
   const labels = {
-    provisional: 'Provisionally usable; completeness not confirmed',
-    complete: 'Confirmed complete',
-    missing: 'Known missing starts; excluded from usable summaries',
-    unresolved: 'Unresolved or needs review; excluded from usable summaries'
+    provisional: 'Not yet checked',
+    complete: 'History confirmed',
+    missing: 'Missing starts',
+    unresolved: 'History uncertain'
   };
   const intervals = document.createDocumentFragment();
   for (const interval of [...history.intervals].reverse()) {
     const item = document.createElement('li');
     item.dataset.status = interval.status;
-    const text = document.createElement('p');
-    text.textContent = `${interval.start} to ${interval.end}: ${interval.days} days. ${labels[interval.status]}.`;
-    item.append(text, reviewButton(interval, 'Review'));
+    const top = document.createElement('div');
+    top.className = 'interval-top';
+    const length = document.createElement('strong');
+    length.textContent = `${interval.days} days`;
+    const status = document.createElement('span');
+    status.textContent = labels[interval.status];
+    top.append(length, status);
+    const dates = document.createElement('p');
+    dates.className = 'interval-dates';
+    dates.textContent = dateRange(interval.start, interval.end);
+    item.append(top, dates, reviewButton(interval, 'Review'));
     intervals.append(item);
   }
   $('intervals').replaceChildren(intervals);
   $('open-span').replaceChildren();
   if (history.openSpan) {
     const text = document.createElement('p');
-    text.textContent = `Since the latest start: ${history.openSpan.start} through ${history.openSpan.end}. This is not a completed interval.`;
+    text.textContent = `Since your latest start: ${dateRange(history.openSpan.start, history.openSpan.end)}. This span ends when another period start is recorded.`;
     $('open-span').append(text, reviewButton(history.openSpan, 'Review'));
   }
   const answers = document.createDocumentFragment();
@@ -149,7 +215,7 @@ function renderHistory() {
     const item = document.createElement('li');
     item.dataset.reviewId = review.id;
     const text = document.createElement('p');
-    text.textContent = `${review.start} through ${review.end}: ${reviewDescription(review, history.starts)}.`;
+    text.textContent = `${dateRange(review.start, review.end)}: ${reviewDescription(review, history.starts)}.`;
     item.append(text, reviewButton(review, 'Change review'));
     answers.append(item);
   }
@@ -159,13 +225,28 @@ function renderHistory() {
 
 function renderForecast(forecast) {
   $('forecast').dataset.state = forecast.status;
-  $('estimate-text').textContent = ['available', 'passed'].includes(forecast.status) ?
-    `${forecast.status === 'passed' ? 'Estimated window has passed' : 'Estimated next-period range'}: ${forecast.start} to ${forecast.end}.` :
-    `Estimate ${forecast.status === 'blocked' ? 'withheld' : 'unavailable'}. ${forecast.reason}`;
+  const hasRange = ['available', 'passed'].includes(forecast.status);
+  $('estimate-heading').textContent = forecast.status === 'passed' ? 'Your last estimate' : 'Looking ahead';
+  $('estimate-text').textContent = hasRange ? dateRange(forecast.start, forecast.end) :
+    forecast.status === 'blocked' ? 'A quick check first.' :
+    forecast.status === 'insufficient' ? 'Getting to know your rhythm.' : 'No estimate just now.';
+  $('estimate-note').textContent = forecast.status === 'passed' ?
+    'This estimated window has passed. These dates remain based on your last recorded period start.' :
+    forecast.status === 'available' ?
+      'Your next period may start around these dates. The timing can vary.' :
+      forecast.status === 'blocked' ?
+        'Some start history is missing or uncertain. You can check it in History, or keep logging as usual.' :
+        forecast.status === 'insufficient' ?
+          'An estimate needs at least four recorded period starts, giving three usable intervals. No daily logging needed.' :
+          'The estimated dates are outside the calendar this diary supports.';
+  $('estimate-sample').hidden = !hasRange;
+  $('estimate-sample').textContent = hasRange ?
+    `Based on ${forecast.sampleCount} intervals, including ${forecast.provisionalCount} you haven't confirmed.` : '';
   $('estimate-method').textContent = ['available', 'passed'].includes(forecast.status) ?
-    `Based on ${forecast.sampleCount} usable intervals among the latest six, including ${forecast.provisionalCount} provisional. Shortest to longest length, padded by two days on each side; earliest is at least one day after the latest start. This is an uncalibrated estimate, not a guarantee or contraception guidance. The window does not move forward when it passes.` :
-    'Estimates need at least three eligible intervals among the latest six. Relevant unresolved history withholds an estimate; known-missing completed intervals are excluded. This is not medical or contraception guidance.';
-  $('view-checkins').hidden = !['blocked', 'insufficient'].includes(forecast.status);
+    `Based on ${forecast.sampleCount} usable intervals among the latest six, including ${forecast.provisionalCount} provisional. The range extends two days on either side of your shortest and longest intervals. It starts at least one day after your latest recorded start. We haven't established how reliably this range predicts a period start. Do not use it for contraception. The window does not move forward when it passes.` :
+    'Estimates need at least three eligible intervals among the latest six. Uncertain history needs checking before an estimate can be shown. Intervals with missing starts are left out of the calculation. Phase cannot provide medical or contraception advice.';
+  $('view-checkins').hidden = forecast.status !== 'blocked' &&
+    !(forecast.status === 'insufficient' && records.size > 0);
   $('view-checkins').disabled = busy || !storage;
 }
 
@@ -176,22 +257,31 @@ function renderCheckins(checkins) {
     card.className = 'checkin-card';
     card.dataset.checkinId = check.id;
     card.dataset.reason = check.reason;
-    const heading = document.createElement('h4');
-    heading.textContent = `Check start history: ${check.start} through ${check.end}`;
+    const heading = document.createElement('h3');
+    heading.textContent = dateRange(check.start, check.end);
     const text = document.createElement('p');
+    const detail = document.createElement('details');
+    const explanation = document.createElement('summary');
+    explanation.textContent = 'Why this question?';
+    const reason = document.createElement('p');
     if (check.reason === 'changed') {
-      text.textContent = 'Recorded starts changed in a reviewed span. Your earlier answer needs another look; this does not establish that any starts are missing.';
+      text.textContent = 'You changed a period start here. Does your earlier answer still fit?';
+      reason.textContent = 'A recorded start changed after your answer. This does not mean a period start is missing.';
     } else if (check.reason === 'long') {
-      text.textContent = `A recorded span of ${check.comparison.days} days prompted this review. The review trigger is over ${check.comparison.threshold} days: 1.5 times the median of ${check.comparison.count} other usable intervals. Are all starts recorded? This is a question about record completeness, not a medical cutoff or evidence that a period occurred.`;
+      text.textContent = `There are ${check.comparison.days} days between these dates. Have you recorded every period start?`;
+      reason.textContent = `We ask when a span is over ${check.comparison.threshold} days: 1.5 times the median of ${check.comparison.count} other usable intervals. This threshold helps decide when to ask about your records. It cannot establish whether another period occurred or assess your health.`;
     } else {
-      text.textContent = 'There are fewer than three other usable intervals for a personal gap check. You can review what you remember; no population-based duration cutoff has been applied and no missing start is assumed.';
+      text.textContent = 'We are still getting to know your history. Have you recorded every period start here?';
+      reason.textContent = 'There are fewer than three other usable intervals to compare with this span. You can check what you remember. No general cycle-length cutoff has been applied, and no missing start has been assumed.';
     }
+    detail.append(explanation, reason);
     const dismiss = document.createElement('button');
     dismiss.type = 'button';
     dismiss.textContent = 'Dismiss check-in';
+    dismiss.className = 'text-button';
     dismiss.disabled = busy || !storage;
     dismiss.addEventListener('click', () => dismissCheckin(check));
-    card.append(heading, text, reviewButton(check, 'Review history'), dismiss);
+    card.append(heading, text, detail, reviewButton(check, 'Review history'), dismiss);
     fragment.append(card);
   }
   $('history-checkins').replaceChildren(fragment);
@@ -204,7 +294,7 @@ async function dismissCheckin(check) {
   setBusy(true);
   try {
     applyState(await storage.dismissCheckin(check));
-    announce(`Check-in dismissed. No completeness answer was recorded; unresolved history still affects estimates.${undo ? ' Your previous Undo is unchanged.' : ''}`);
+    announce(`Check-in dismissed. No history answer was saved. Any uncertainty still affects estimates.${undo ? ' Your previous Undo is unchanged.' : ''}`);
   } catch (error) {
     announce(`${error.message}${error.code === 'STALE_RECORD' ? ' Reload to refresh this check-in.' : ''}`);
   } finally {
@@ -214,14 +304,16 @@ async function dismissCheckin(check) {
 }
 
 function reviewDescription(review, starts) {
-  return `${REVIEW_LABELS[review.answer]}${reviewNeedsAttention(review, starts) ? '; needs review because recorded starts changed' : ''}${review.missingUnresolved && review.answer !== 'missing' ? '; previously reported missing starts remain unresolved' : ''}`;
+  return `${REVIEW_LABELS[review.answer]}${reviewNeedsAttention(review, starts) ? '. Your recorded starts have changed since this answer. Please check it again' : ''}${review.missingUnresolved && review.answer !== 'missing' ? '. You previously reported missing starts here. Please check whether any are still missing' : ''}`;
 }
 
 function reviewButton(span, action) {
   const button = document.createElement('button');
   button.type = 'button';
   button.dataset.span = `${span.start}/${span.end}`;
-  button.textContent = `${action} ${span.start} to ${span.end}`;
+  button.textContent = action === 'Review' ? 'Check this history' :
+    action === 'Change review' ? 'Change answer' : 'Check history';
+  button.setAttribute('aria-label', `${button.textContent}: ${shortDate(span.start)} to ${shortDate(span.end)}`);
   button.disabled = !storage || busy;
   button.addEventListener('click', () => openReview(span, button.closest('[id]').id));
   return button;
@@ -246,6 +338,7 @@ function updateSelectionControls() {
   $('selection-bar').hidden = !selectionMode;
   const count = selectedDates.size;
   $('selection-count').textContent = `${count} ${count === 1 ? 'day' : 'days'} selected`;
+  $('log-today').hidden = selectionMode;
   for (const button of document.querySelectorAll('[data-bulk-action]')) {
     button.disabled = busy || count === 0;
   }
@@ -288,9 +381,15 @@ function setBusy(value) {
     for (const control of $(id).elements) control.disabled = value;
     $(id).setAttribute('aria-busy', String(value));
   }
-  if (!value) $('clear-day').disabled = original == null;
+  if (!value) {
+    $('clear-day').disabled = original == null;
+    $('clear-day').hidden = original == null;
+  }
   $('undo').disabled = value;
+  $('undo-notice').disabled = value;
+  $('dismiss-save').disabled = value;
   $('view-checkins').disabled = value || !storage;
+  $('log-today').disabled = value || !storage;
   for (const button of document.querySelectorAll('nav button')) button.disabled = value;
   for (const button of $('calendar').querySelectorAll('button')) {
     button.disabled = value || button.dataset.date > localToday();
@@ -315,17 +414,18 @@ async function openEditor(date, focusTarget) {
     returnFocus = focusTarget;
     applyState(state);
     editing = true;
-    $('editor-heading').textContent = dateLabel(date);
+    $('editor-heading').textContent = shortDate(date);
     $('editor-current').textContent = latest ?
       `Recorded: ${BLEEDING_LABELS[latest.bleeding]}${latest.periodStart ? ', period start' : ''}.` :
-      'Not recorded (unknown).';
-    $('bleeding').value = latest?.bleeding ?? '';
+      'Nothing logged yet. Start with what you remember.';
+    $('editor-help').textContent = 'Only this day changes. Unlogged days stay blank.';
+    setChoice('bleeding', latest?.bleeding ?? '');
     $('period-start').checked = latest?.periodStart ?? false;
     $('editor-error').hidden = true;
     clearConflict();
     setBusy(false);
     $('day-editor').showModal();
-    $('bleeding').focus();
+    focusChoice('bleeding');
   } catch (error) {
     announce(error.message);
   }
@@ -355,8 +455,10 @@ for (const [dialog, form] of [
   });
   $(dialog).addEventListener('keydown', (event) => {
     if (event.key !== 'Tab') return;
-    const controls = [...$(form).elements]
-      .filter((control) => !control.disabled && control.getClientRects().length > 0);
+    const controls = [...$(form).querySelectorAll('button, input, select, summary')]
+      .filter((control) => !control.disabled && control.getClientRects().length > 0 &&
+        (control.type !== 'radio' || control.checked ||
+          !$(form).querySelector(`input[name="${control.name}"]:checked`)));
     const first = controls[0];
     const last = controls.at(-1);
     if (event.shiftKey && document.activeElement === first) {
@@ -379,8 +481,9 @@ function offerConflict(record, message, action) {
 
 function updateReviewControls() {
   const approval = !pendingReview?.replaced.length || $('review-replace').checked;
-  $('save-review').disabled = busy || !pendingReview || !approval || !$('review-answer').value;
+  $('save-review').disabled = busy || !pendingReview || !approval || !choice('review-answer');
   $('remove-review').disabled = busy || !pendingReview?.replaced.length || !approval;
+  $('remove-review').hidden = !pendingReview?.replaced.length;
 }
 
 async function openReview(requested, section) {
@@ -396,16 +499,16 @@ async function openReview(requested, section) {
     pendingReview = { span, replaced, expected: state };
     reviewReturnSpan = `${requested.start}/${requested.end}`;
     reviewReturnSection = section;
-    $('review-heading').textContent = `Review ${span.start} through ${span.end}`;
+    $('review-heading').textContent = dateRange(span.start, span.end);
     $('review-boundaries').textContent = span.start !== requested.start || span.end !== requested.end ?
-      'This review includes the full span of overlapping answers. Saving replaces all answers listed below, not just the originally selected interval.' :
-      'Your answer applies only to these fixed dates. It will not extend automatically.';
-    $('review-starts').textContent = `Recorded starts in this span: ${starts.filter((date) =>
-      span.start <= date && date <= span.end).join(', ') || 'none'}.`;
+      'This includes the full span of overlapping answers. Saving replaces each answer listed below in full.' :
+      'Your answer applies only to the dates shown above.';
+    $('review-starts').textContent = `Period starts recorded here: ${starts.filter((date) =>
+      span.start <= date && date <= span.end).map(shortDate).join(', ') || 'none'}.`;
     const list = document.createDocumentFragment();
     for (const review of replaced) {
       const item = document.createElement('li');
-      item.textContent = `${review.start} through ${review.end}: ${reviewDescription(review, starts)}.`;
+      item.textContent = `${dateRange(review.start, review.end)}: ${reviewDescription(review, starts)}.`;
       list.append(item);
     }
     $('review-existing').replaceChildren(list);
@@ -414,7 +517,8 @@ async function openReview(requested, section) {
     $('review-missing-warning').hidden = !replaced.some((review) => review.missingUnresolved);
     const exact = replaced.length === 1 && replaced[0].start === span.start && replaced[0].end === span.end &&
       !reviewNeedsAttention(replaced[0], starts) ? replaced[0] : null;
-    $('review-answer').value = exact?.answer ?? '';
+    setChoice('review-answer', exact?.answer ?? '');
+    $('remembered-start').open = false;
     $('review-add-date').value = '';
     $('review-add-date').min = span.start;
     $('review-add-date').max = span.end;
@@ -422,7 +526,7 @@ async function openReview(requested, section) {
     editing = true;
     setBusy(false);
     $('review-editor').showModal();
-    $('review-answer').focus();
+    focusChoice('review-answer');
   } catch (error) {
     announce(error.message);
   }
@@ -452,8 +556,8 @@ async function saveReview(answer) {
     applyState(result);
     if (result.reviewChanges.length) offerUndo(result);
     announce(result.reviewChanges.length ?
-      `History review ${answer === null ? 'removed' : 'saved'}. Daily observations are unchanged. Undo is available until your next changed edit or reload.` :
-      'No changes to save.');
+      `History review ${answer === null ? 'removed' : 'saved'}. Daily observations are unchanged.` :
+      'No changes to save.', result.reviewChanges.length > 0);
     setBusy(false);
     $('review-editor').close();
   } catch (error) {
@@ -465,7 +569,7 @@ async function saveReview(answer) {
 
 $('review-form').addEventListener('submit', (event) => {
   event.preventDefault();
-  if (Object.hasOwn(REVIEW_LABELS, $('review-answer').value)) saveReview($('review-answer').value);
+  if (Object.hasOwn(REVIEW_LABELS, choice('review-answer'))) saveReview(choice('review-answer'));
 });
 $('remove-review').addEventListener('click', () => saveReview(null));
 $('add-remembered-start').addEventListener('click', () => {
@@ -484,18 +588,48 @@ $('add-remembered-start').addEventListener('click', () => {
   }
   $('review-editor').addEventListener('close', async () => {
     await openEditor(date, { page: 'history', date });
-    if (editing) $('period-start').checked = true;
-    announce('Record the remembered start explicitly, then review the updated history again. Your unsaved review answer has not been saved.');
+    if (editing) {
+      $('period-start').checked = true;
+      $('editor-help').textContent = "Choose a flow to save this remembered start. Your draft history answer hasn't been saved. After adding this start, check your history again.";
+    }
   }, { once: true });
   $('review-editor').close();
 });
 
+function dismissSaveNotice() {
+  const hadFocus = $('save-notice').contains(document.activeElement);
+  $('save-notice').hidden = true;
+  $('save-description').textContent = '';
+  if (hadFocus) $('undo').focus({ preventScroll: true });
+}
+
 function discardUndo() {
+  const hadFocus = document.activeElement === $('undo') || $('save-notice').contains(document.activeElement);
   undo = undefined;
-  const hadFocus = document.activeElement === $('undo');
+  dismissSaveNotice();
   $('undo-bar').hidden = true;
   $('undo-description').textContent = '';
   if (hadFocus) document.querySelector('nav [aria-current="page"]').focus();
+}
+
+function describeEdit(changes, reviewChanges) {
+  if (changes.length === 0) {
+    const spans = reviewChanges.map((change) => change.next ?? change.previous);
+    const start = spans.map((span) => span.start).sort()[0];
+    const end = spans.map((span) => span.end).sort().at(-1);
+    return `History answer ${reviewChanges.every((change) => !change.next) ? 'removed' : 'updated'} for ${dateRange(start, end)}.`;
+  }
+  if (changes.length === 1) {
+    const { date, previous, next } = changes[0];
+    if (!next) return `Cleared ${shortDate(date)}.`;
+    const flow = next.bleeding === 'none' ? 'no bleeding' :
+      next.bleeding === 'spotting' ? 'spotting' : `${next.bleeding} flow`;
+    const start = next.periodStart ? ' Period start recorded.' :
+      previous?.periodStart ? ' Period start removed.' : '';
+    return `Recorded ${flow} for ${shortDate(date)}.${start}`;
+  }
+  const dates = changes.map((change) => change.date).sort();
+  return `${changes.every((change) => !change.next) ? 'Cleared' : 'Updated'} ${changes.length} days (${dateRange(dates[0], dates.at(-1))}).`;
 }
 
 function offerUndo(result) {
@@ -507,9 +641,11 @@ function offerUndo(result) {
     reviewGuards: result.reviewGuards, startGuards: result.startGuards,
     dismissalChanges: result.dismissalChanges
   };
-  $('undo-description').textContent = changes.length === 0 ? 'Changed history review.' : changes.length === 1 ?
-    `Changed ${dateLabel(changes[0].date)}.` : `Changed ${changes.length} days.`;
+  const description = describeEdit(changes, result.reviewChanges);
+  $('undo-description').textContent = description;
   $('undo-bar').hidden = false;
+  $('save-description').textContent = description;
+  $('save-notice').hidden = false;
 }
 
 async function saveRecord(record) {
@@ -522,8 +658,8 @@ async function saveRecord(record) {
     applyState(result);
     if (change.changed) offerUndo(result);
     announce(change.changed ?
-      `${record ? 'Saved' : 'Cleared'} ${dateLabel(change.date)}. Undo is available until your next changed edit or reload.` :
-      'No changes to save.');
+      `${record ? 'Saved' : 'Cleared'} ${dateLabel(change.date)}.` :
+      'No changes to save.', change.changed);
     setBusy(false);
     closeEditor();
   } catch (error) {
@@ -536,16 +672,16 @@ $('day-form').addEventListener('submit', (event) => {
   event.preventDefault();
   if (busy) return;
   clearConflict();
-  const bleeding = $('bleeding').value;
+  const bleeding = choice('bleeding');
   if (!Object.hasOwn(BLEEDING_LABELS, bleeding)) {
-    showEditorError('Choose a bleeding observation, or clear the day to leave it unknown.');
-    $('bleeding').focus();
+    showEditorError('Choose a bleeding observation to save this day, or close to leave it blank.');
+    focusChoice('bleeding');
     return;
   }
   const record = { date: selectedDate, bleeding, periodStart: $('period-start').checked };
   if (record.periodStart && !supportsStart(bleeding)) {
     offerConflict({ ...record, periodStart: false },
-      `Saving ${BLEEDING_LABELS[bleeding].toLowerCase()} conflicts with the selected period start. Remove the marker explicitly to save this observation, or keep editing.`,
+      `A period start needs light, medium, or heavy flow. To save ${bleeding === 'none' ? 'no bleeding' : 'spotting'}, remove the period start or choose a different flow.`,
       'Remove period start and save');
     return;
   }
@@ -567,7 +703,7 @@ $('resolve-conflict').addEventListener('click', () => {
 });
 $('keep-editing').addEventListener('click', () => {
   clearConflict();
-  $('bleeding').focus();
+  focusChoice('bleeding');
 });
 for (const id of ['bleeding', 'period-start']) {
   $(id).addEventListener('change', () => {
@@ -614,7 +750,7 @@ async function applyBulkAction(action) {
     const before = document.createElement('p');
     before.textContent = `Before: ${recordSummary(change.expected)}`;
     const after = document.createElement('p');
-    after.textContent = `After: ${recordSummary(change.next)}; period start will be removed only with your approval`;
+    after.textContent = `After: ${recordSummary(change.next)}. Removing the period start needs your approval.`;
     const label = document.createElement('label');
     label.className = 'checkbox-label';
     const checkbox = document.createElement('input');
@@ -663,8 +799,8 @@ async function saveBulk(edits) {
     const changed = changes.filter((change) => change.changed);
     if (changed.length > 0) offerUndo(result);
     announce(changed.length > 0 ?
-      `Saved batch: ${changed.length} ${changed.length === 1 ? 'day' : 'days'} changed. Undo is available until your next changed edit or reload.` :
-      'No changes to save.');
+      `Saved batch: ${changed.length} ${changed.length === 1 ? 'day' : 'days'} changed.` :
+      'No changes to save.', changed.length > 0);
     setBusy(false);
     cancelSelection();
     if ($('bulk-editor').open) $('bulk-editor').close();
@@ -715,8 +851,9 @@ $('select-days').addEventListener('click', () => {
   selectionMode = true;
   updateSelectionControls();
   renderCalendar();
-  announce('Select dates across months, then choose a bleeding value or clear observations.');
-  $('cancel-selection').focus();
+  announce('Tap the days you want to change, then choose a flow below. You can move between months.', true);
+  ($('calendar').querySelector('[aria-current="date"]:not(:disabled)') ??
+    $('calendar').querySelector('button:not(:disabled)'))?.focus();
 });
 
 $('cancel-selection').addEventListener('click', () => {
@@ -730,8 +867,9 @@ for (const button of document.querySelectorAll('[data-bulk-action]')) {
   button.addEventListener('click', () => applyBulkAction(button.dataset.bulkAction));
 }
 
-$('undo').addEventListener('click', async () => {
+async function undoEdit() {
   if (busy || editing || !undo) return;
+  const hadFocus = document.activeElement === $('undo') || document.activeElement === $('undo-notice');
   const { changes } = undo;
   setBusy(true);
   try {
@@ -746,23 +884,29 @@ $('undo').addEventListener('click', async () => {
     announce(error.message);
   } finally {
     setBusy(false);
+    if (hadFocus && !undo) document.querySelector('nav [aria-current="page"]').focus();
   }
-});
+}
+$('undo').addEventListener('click', undoEdit);
+$('undo-notice').addEventListener('click', undoEdit);
+$('dismiss-save').addEventListener('click', dismissSaveNotice);
 
 for (const button of document.querySelectorAll('nav [data-page]')) {
   button.addEventListener('click', () => {
     if (busy) return;
+    if (button.getAttribute('aria-current') !== 'page') dismissSaveNotice();
     editorRequest++;
     if (button.dataset.page !== 'calendar' && selectionMode) {
       cancelSelection();
       announce('Selection cancelled. No records changed.');
-    }
+    } else announce('', true);
     for (const navButton of document.querySelectorAll('nav [data-page]')) {
       if (navButton === button) navButton.setAttribute('aria-current', 'page');
       else navButton.removeAttribute('aria-current');
       $(`${navButton.dataset.page}-page`).hidden = navButton !== button;
     }
     renderRecords();
+    window.scrollTo(0, 0);
   });
 }
 $('view-checkins').addEventListener('click', () => {
@@ -780,6 +924,15 @@ $('today').addEventListener('click', () => {
   month = localToday().slice(0, 7);
   renderRecords();
   $('calendar').querySelector('[aria-current="date"]')?.focus();
+});
+$('log-today').addEventListener('click', () => {
+  month = localToday().slice(0, 7);
+  renderRecords();
+  openEditor(localToday(), { page: 'calendar', date: localToday() });
+});
+$('history-log').addEventListener('click', () => {
+  document.querySelector('nav [data-page="calendar"]').click();
+  $('log-today').focus();
 });
 
 function settingsError(error) {
@@ -811,7 +964,7 @@ for (const kind of ['json', 'csv']) {
       const text = kind === 'json' ? JSON.stringify(createBackup(state), null, 2) + '\n' : createCSV(state);
       download(text, kind === 'json' ? 'application/json' : 'text/csv;charset=utf-8',
         kind === 'json' ? 'phase-backup.json' : 'phase-observations.csv');
-      announce('Export download requested. The file is unencrypted; keep it somewhere secure.');
+      announce('Download requested. Keep the unencrypted file somewhere secure.');
     } catch (error) {
       settingsError(error);
     } finally {
@@ -825,8 +978,11 @@ function updateDataControls() {
 }
 
 function stateCounts(state) {
-  return `${state.records.length} daily observations (${startDates(state.records).length} period starts), ` +
-    `${state.reviews.length} history reviews, ${state.dismissals.length} check-in dismissals.`;
+  const starts = startDates(state.records).length;
+  return `${state.records.length} daily ${state.records.length === 1 ? 'observation' : 'observations'} ` +
+    `(${starts} period ${starts === 1 ? 'start' : 'starts'}), ` +
+    `${state.reviews.length} history ${state.reviews.length === 1 ? 'review' : 'reviews'}, ` +
+    `${state.dismissals.length} check-in ${state.dismissals.length === 1 ? 'dismissal' : 'dismissals'}.`;
 }
 
 async function previewData(deleting) {
@@ -844,11 +1000,11 @@ async function previewData(deleting) {
     pendingData = { state, expected, deleting };
     $('data-heading').textContent = deleting ? 'Delete all Phase data?' : 'Replace diary with this backup?';
     $('data-help').textContent = deleting ?
-      'This permanently deletes all saved Phase user data in this browser and clears Undo. It cannot be undone. Exported files and other devices are unaffected.' :
-      'This replaces all current observations, period starts, reviews, and dismissals with the backup. It clears Undo and cannot be undone. Nothing changes until you confirm.';
+      'This permanently deletes your saved diary from this browser, including history answers and dismissed check-ins. It clears Undo and cannot be undone. Downloaded files and other devices are unaffected.' :
+      'This replaces your whole diary with the backup, including observations, period starts, history answers, and dismissed check-ins. It clears Undo and cannot be undone. Nothing changes until you confirm.';
     $('data-help').textContent += resetChannel ?
       ' Other open Phase tabs will reload and discard unsaved drafts.' :
-      ' Close other Phase tabs to clear their old on-screen data; their old edits cannot be restored.';
+      ' Close other Phase tabs to clear any diary data still shown there. Their old edits can no longer be restored.';
     $('data-current').textContent = `Currently saved: ${stateCounts(expected)}`;
     $('data-incoming').textContent = deleting ? '' : `Backup to restore: ${stateCounts(state)}`;
     $('data-approval-label').textContent = deleting ?
@@ -932,15 +1088,15 @@ $('data-form').addEventListener('submit', async (event) => {
 
 renderRecords();
 updateSelectionControls();
-announce('Loading local records...');
+announce('Loading your diary...', true);
 try {
   storage = await openStorage();
   applyState(await storage.readState());
   setBusy(false);
-  announce('Local records ready.');
+  announce('Local records ready.', true);
 } catch (error) {
   storage = undefined;
-  $('storage-error').textContent = `${error.message} Editing is unavailable; no saved records have been changed.`;
+  $('storage-error').textContent = `${error.message} Editing is unavailable. Your saved records are unchanged.`;
   $('storage-error').hidden = false;
   announce('');
 }

@@ -23,7 +23,7 @@ export function setupOffline(canRestart, setRestarting) {
 
   function failed() {
     status.textContent = installed ?
-      'Could not check or download an update. Your saved offline version is still available; Phase will try again when you return.' :
+      'Could not check or download an update. You can still use the saved offline version. Phase will try again when you return.' :
       'Offline setup did not finish. Phase will try again when you return. Keep your own JSON backups.';
   }
 
@@ -36,7 +36,7 @@ export function setupOffline(canRestart, setRestarting) {
         if (isUpdate) updateWorker = worker;
         activated ||= worker.state === 'activated';
         installed = true;
-        status.textContent = 'Available offline on this device. Browser storage can still be lost; keep your own JSON backups.';
+        status.textContent = "Ready to use offline on this device. Keep a JSON backup in case this browser's storage is cleared or lost.";
         refresh();
       } else if (worker.state === 'redundant') {
         if (updateWorker === worker) updateWorker = undefined;
@@ -65,7 +65,7 @@ export function setupOffline(canRestart, setRestarting) {
         await registration.update();
       }
       if (installed) {
-        status.textContent = 'Available offline on this device. Browser storage can still be lost; keep your own JSON backups.';
+        status.textContent = "Ready to use offline on this device. Keep a JSON backup in case this browser's storage is cleared or lost.";
       }
       refresh();
     } catch {

@@ -1,5 +1,5 @@
 // Bump this for every published change to the application shell.
-const VERSION = '1';
+const VERSION = '5';
 const PREFIX = `phase-shell:${self.registration.scope}:`;
 const CACHE = `${PREFIX}${VERSION}`;
 const ASSETS = [

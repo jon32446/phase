@@ -4,71 +4,121 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
-  <meta name="theme-color" content="#653859">
-  <title>Phase - Cycle diary</title>
+  <meta name="theme-color" content="#faf7f2">
+  <title>Phase - Your cycle diary</title>
   <link rel="stylesheet" href="./styles.css">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
   <script type="module" src="./src/app.js"></script>
 </head>
 <body>
+  <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs>
+      <symbol id="icon-drop" viewBox="0 0 24 24"><path d="M12 2C10 6 5 10 5 15a7 7 0 0 0 14 0c0-5-5-9-7-13Z" fill="currentColor"/><path d="M8 15a4 4 0 0 0 3 4" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round"/></symbol>
+      <symbol id="icon-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18m-13 5h2m4 0h2"/></symbol>
+      <symbol id="icon-history" viewBox="0 0 24 24"><path d="M3 11a9 9 0 1 1 2 7M3 4v7h7m2-4v6l4 2"/></symbol>
+      <symbol id="icon-settings" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="var(--surface, #fffdf9)"/><circle cx="15" cy="17" r="3" fill="var(--surface, #fffdf9)"/></symbol>
+      <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+      <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+      <symbol id="icon-start" viewBox="0 0 24 24"><path d="M6 21V4m0 0c4-5 8 5 13 0v10c-5 5-9-5-13 0"/></symbol>
+      <symbol id="icon-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/></symbol>
+      <symbol id="icon-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+      <symbol id="icon-undo" viewBox="0 0 24 24"><path d="m9 4-5 5 5 5M4 9h10a6 6 0 0 1 0 12"/></symbol>
+      <symbol id="icon-none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><path d="m7 17 10-10"/></symbol>
+      <symbol id="icon-spark" viewBox="0 0 24 24"><path d="m12 2 2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5L12 2Z"/></symbol>
+    </defs>
+  </svg>
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="app-header">
-    <h1>Phase</h1>
-    <p>Your cycle diary, on your device.</p>
+    <div class="brand"><svg class="brand-mark icon" aria-hidden="true"><use href="#icon-drop"/></svg><span>phase<span class="brand-dot">.</span></span></div>
+    <span class="header-note"><svg class="icon" aria-hidden="true"><use href="#icon-shield"/></svg>Just you and your diary</span>
     <nav aria-label="Main">
-      <button type="button" aria-current="page" data-page="calendar">Calendar</button>
-      <button type="button" data-page="history">History</button>
-      <button type="button" data-page="settings">Settings</button>
+      <button type="button" aria-current="page" data-page="calendar"><svg class="icon" aria-hidden="true"><use href="#icon-calendar"/></svg><span>Calendar</span></button>
+      <button type="button" data-page="history"><svg class="icon" aria-hidden="true"><use href="#icon-history"/></svg><span>History</span></button>
+      <button type="button" data-page="settings"><svg class="icon" aria-hidden="true"><use href="#icon-settings"/></svg><span>Settings</span></button>
     </nav>
+    <div id="undo-bar" class="undo-control" hidden>
+      <button id="undo" class="text-button" type="button" aria-label="Undo last edit" aria-describedby="undo-description"><svg class="icon" aria-hidden="true"><use href="#icon-undo"/></svg>Undo last edit</button>
+      <small id="undo-description"></small>
+    </div>
   </header>
 
   <main id="main" tabindex="-1">
     <p id="storage-error" class="error" role="alert" hidden></p>
-    <p id="status" class="status" role="status" aria-live="polite"></p>
-    <div id="update-notice" class="notice" aria-live="polite" hidden>
-      <p>Update ready. Restart to use the new version. Your saved diary stays intact, but session Undo will be cleared. Other open Phase windows will not restart.</p>
-      <p>Finish or cancel any editor, selected days, or restore/deletion preview before restarting.</p>
+    <div class="feedback">
+      <p id="status" class="status quiet" role="status" aria-live="polite"></p>
+      <div id="save-notice" class="undo-bar" hidden>
+        <span id="save-description"></span>
+        <button id="undo-notice" type="button" aria-label="Undo this edit" aria-describedby="save-description">Undo</button>
+        <button id="dismiss-save" class="icon-button" type="button" aria-label="Dismiss notification"><svg class="icon" aria-hidden="true"><use href="#icon-close"/></svg></button>
+      </div>
+    </div>
+    <div id="update-notice" class="update-notice" aria-live="polite" hidden>
+      <div><strong>A fresh version is ready</strong><p>Restart keeps your saved records, but clears Undo. Other windows stay as they are.</p><p>Finish or cancel any open edit, selected days, or restore/delete preview first.</p></div>
       <button id="restart-update" type="button" disabled>Restart to update</button>
     </div>
-    <div id="undo-bar" class="undo-bar" hidden>
-      <span id="undo-description"></span>
-      <button id="undo" type="button">Undo last edit</button>
-      <span>Available until your next successful changed edit or reload. Kept only in memory.</span>
-    </div>
 
-    <section id="calendar-page" aria-labelledby="month-heading">
-      <p>Record what you know; unlogged days stay unknown.</p>
-      <div id="forecast" class="notice" aria-live="polite">
-        <h3>Next-period estimate</h3>
-        <p id="estimate-text"></p>
-        <p id="estimate-method"></p>
-        <button id="view-checkins" type="button" hidden>View history</button>
+    <section id="calendar-page" aria-labelledby="calendar-heading">
+      <div class="page-heading">
+        <div><p class="eyebrow">AT YOUR PACE</p><h1 id="calendar-heading">Your diary</h1><p class="page-intro">Log today or choose a day you remember.</p></div>
+        <button id="log-today" class="primary" type="button" disabled><svg class="icon" aria-hidden="true"><use href="#icon-plus"/></svg>Log today</button>
       </div>
-      <div class="month-controls">
-        <button id="previous-month" type="button" aria-label="Previous month">Previous</button>
-        <h2 id="month-heading" aria-live="polite"></h2>
-        <button id="next-month" type="button" aria-label="Next month">Next</button>
+      <div class="diary-layout">
+        <div class="calendar-card">
+          <div class="calendar-toolbar">
+            <h2 id="month-heading" aria-live="polite"></h2>
+            <div class="month-controls">
+              <button id="today" class="text-button" type="button">Today</button>
+              <button id="previous-month" class="icon-button previous" type="button" aria-label="Previous month"><svg class="icon" aria-hidden="true"><use href="#icon-arrow"/></svg></button>
+              <button id="next-month" class="icon-button" type="button" aria-label="Next month"><svg class="icon" aria-hidden="true"><use href="#icon-arrow"/></svg></button>
+            </div>
+          </div>
+          <div class="weekdays" aria-hidden="true">
+            <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+          </div>
+          <div id="calendar" class="calendar" role="group" aria-labelledby="month-heading"></div>
+          <div class="calendar-footer">
+            <span><svg class="icon start-icon" aria-hidden="true"><use href="#icon-start"/></svg>Period start</span>
+            <button id="select-days" class="text-button" type="button" disabled>Select days</button>
+          </div>
+          <details class="calendar-key">
+            <summary>Calendar guide</summary>
+            <p>Tap today or a past day to log or edit. Future days are view-only. Blank days have no entry. Choose 'No bleeding' when you want to record that observation.</p>
+            <div class="legend">
+              <span><svg class="icon" aria-hidden="true"><use href="#icon-none"/></svg>No bleeding</span>
+              <span><span class="spotting-mark" aria-hidden="true"></span>Spotting</span>
+              <span><svg class="icon" aria-hidden="true"><use href="#icon-drop"/></svg>Light</span>
+              <span><span class="drops" aria-hidden="true"><svg class="icon"><use href="#icon-drop"/></svg><svg class="icon"><use href="#icon-drop"/></svg></span>Medium</span>
+              <span><span class="drops" aria-hidden="true"><svg class="icon"><use href="#icon-drop"/></svg><svg class="icon"><use href="#icon-drop"/></svg><svg class="icon"><use href="#icon-drop"/></svg></span>Heavy</span>
+            </div>
+            <p>Select days to log several days together, even across months. This never adds period starts.</p>
+          </details>
+        </div>
+        <aside class="diary-aside" aria-label="Your diary at a glance">
+          <div id="forecast" class="forecast-card" aria-live="polite">
+            <div class="card-eyebrow"><svg class="icon" aria-hidden="true"><use href="#icon-spark"/></svg><h2 id="estimate-heading">Looking ahead</h2></div>
+            <p id="estimate-text" class="estimate-date"></p>
+            <p id="estimate-note" class="muted"></p>
+            <p id="estimate-sample" class="estimate-sample"></p>
+            <button id="view-checkins" class="text-button" type="button" hidden>View history<svg class="icon" aria-hidden="true"><use href="#icon-arrow"/></svg></button>
+            <details class="estimate-details">
+              <summary>About this estimate</summary>
+              <p id="estimate-method"></p>
+            </details>
+          </div>
+          <div class="reassurance"><svg class="icon" aria-hidden="true"><use href="#icon-shield"/></svg><div><strong>Your diary. Your device.</strong><p>No accounts, no tracking, no sharing your records. Back up what matters in Settings.</p></div></div>
+        </aside>
       </div>
-      <button id="today" type="button">Today</button>
-      <button id="select-days" type="button" disabled>Select days</button>
-      <div class="weekdays" aria-hidden="true">
-        <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
-      </div>
-      <div id="calendar" class="calendar" role="group" aria-labelledby="month-heading"></div>
-      <p class="legend">- Unknown &middot; 0 None &middot; S Spotting &middot; L Light &middot; M Medium &middot; H Heavy &middot; * Period start &middot; [x] Selected</p>
-      <p>Choose any past date or today to edit. Future dates are view-only. Use Select days to edit observations across months; period starts are never created by bulk actions.</p>
       <div id="selection-bar" class="selection-bar" role="group" aria-label="Selected days" hidden>
-        <strong id="selection-count" aria-live="polite"></strong>
-        <span>Apply a bleeding value to all selected days:</span>
+        <div class="selection-heading"><div><strong id="selection-count" aria-live="polite"></strong><p>Choose what to log for these days.</p></div><button id="cancel-selection" class="text-button" type="button">Cancel selection</button></div>
         <div class="selection-actions">
-          <button type="button" data-bulk-action="none">None</button>
-          <button type="button" data-bulk-action="spotting">Spotting</button>
-          <button type="button" data-bulk-action="light">Light</button>
-          <button type="button" data-bulk-action="medium">Medium</button>
-          <button type="button" data-bulk-action="heavy">Heavy</button>
-          <button type="button" data-bulk-action="clear" class="danger">Clear observations</button>
-          <button id="cancel-selection" type="button">Cancel selection</button>
+          <button type="button" data-bulk-action="none"><svg class="icon" aria-hidden="true"><use href="#icon-none"/></svg>None</button>
+          <button type="button" data-bulk-action="spotting"><span class="spotting-mark" aria-hidden="true"></span>Spotting</button>
+          <button type="button" data-bulk-action="light"><span class="drops" aria-hidden="true"><svg class="icon"><use href="#icon-drop"/></svg></span>Light</button>
+          <button type="button" data-bulk-action="medium"><span class="drops" aria-hidden="true"><svg class="icon"><use href="#icon-drop"/></svg><svg class="icon"><use href="#icon-drop"/></svg></span>Medium</button>
+          <button type="button" data-bulk-action="heavy"><span class="drops" aria-hidden="true"><svg class="icon"><use href="#icon-drop"/></svg><svg class="icon"><use href="#icon-drop"/></svg><svg class="icon"><use href="#icon-drop"/></svg></span>Heavy</button>
+          <button type="button" data-bulk-action="clear" class="danger text-button">Clear observations</button>
         </div>
         <div id="selection-error" hidden>
           <p id="selection-error-message" class="error" role="alert"></p>
@@ -78,151 +128,149 @@
     </section>
 
     <section id="history-page" aria-labelledby="history-heading" hidden>
-      <h2 id="history-heading" tabindex="-1">History</h2>
-      <p>Recorded period starts, newest first. Select a date to correct its record.</p>
-      <ul id="history"></ul>
-      <p id="empty-history">No period starts recorded.</p>
-      <h3 id="checkins-heading" tabindex="-1">History check-ins</h3>
-      <p>These optional questions concern recorded starts, not medical normality. They never block logging. Dismissal is not confirmation and does not unlock an estimate. Dismissed and unsure spans are not prompted again unless their recorded starts change. After confirming an open span, another check-in waits at least seven days and still needs a duration trigger, or a limited-history explanation when a personal trigger cannot be calculated.</p>
-      <div id="history-checkins"></div>
-      <p id="empty-checkins">No automatic check-ins to show. Unresolved answers remain listed below.</p>
-      <h3>Recorded intervals</h3>
-      <p id="cycle-summary"></p>
-      <p>These are gaps between recorded starts, not proof of complete cycles. Provisional intervals have no reported missing starts but are not confirmed complete. Sparse daily observations do not disqualify start history. Missing and unresolved intervals are excluded from the usable summary; confirmed long intervals keep their actual length.</p>
-      <ul id="intervals" class="history-list"></ul>
-      <div id="open-span"></div>
-      <h3>History reviews</h3>
-      <p>Review manually whenever useful. Answers concern period starts, not daily bleeding observations. Unsure answers stay unresolved without repeatedly opening a dialog. Closing a review without saving does not answer it.</p>
-      <ul id="history-reviews" class="history-list"></ul>
-      <p id="empty-reviews">No history reviews saved.</p>
+      <div class="page-heading"><div><p class="eyebrow">THE BIGGER PICTURE</p><h1 id="history-heading" tabindex="-1">Your history</h1><p class="page-intro">Your records, with room to fill in the gaps.</p></div></div>
+      <div class="history-overview panel">
+        <div><p class="eyebrow">BETWEEN PERIOD STARTS</p><p id="cycle-summary"></p></div>
+        <details><summary>What these numbers mean</summary><p>These numbers show the days between your recorded period starts. Their accuracy depends on having every start recorded. We show confirmed history and unchecked history separately. Missing or uncertain history is left out. Confirmed long intervals keep their full length. You do not need to log every day.</p></details>
+      </div>
+      <div class="history-layout">
+        <div>
+          <div class="section-heading"><h2>Period starts</h2><span class="muted">Newest first</span></div>
+          <ul id="history" class="start-list"></ul>
+          <div id="empty-history" class="empty-state"><svg class="icon" aria-hidden="true"><use href="#icon-calendar"/></svg><h3>Your story starts anywhere.</h3><p>Log a period start on the calendar whenever you remember one. There is no need to fill in every day.</p><button id="history-log" type="button">Go to calendar<svg class="icon" aria-hidden="true"><use href="#icon-arrow"/></svg></button></div>
+          <div class="section-heading"><h2>Between starts</h2></div>
+          <ul id="intervals" class="history-list interval-list"></ul>
+          <div id="open-span" class="open-span"></div>
+        </div>
+        <div class="history-aside">
+          <section aria-labelledby="checkins-heading" class="checkins-section">
+            <div class="section-heading"><h2 id="checkins-heading" tabindex="-1">A quick history check</h2></div>
+            <p class="muted">Only if you remember. These questions never get in the way of logging.</p>
+            <div id="history-checkins"></div>
+            <p id="empty-checkins" class="subtle-empty">Nothing to check right now.</p>
+            <details><summary>Why we ask</summary><p>These questions help you check whether every period start is recorded. Dismissing a question does not confirm your history or unlock an estimate. Dismissed and unsure spans stay quiet unless their starts change. After you confirm history through a date, another automatic question waits at least seven days and still needs a duration trigger, or a limited-history explanation.</p></details>
+          </section>
+          <section class="saved-reviews" aria-labelledby="reviews-heading">
+            <div class="section-heading"><h2 id="reviews-heading">Your saved answers</h2></div>
+            <p class="muted">You can change your mind, or correct an answer.</p>
+            <ul id="history-reviews" class="history-list"></ul>
+            <p id="empty-reviews" class="subtle-empty">No answers saved yet.</p>
+          </section>
+        </div>
+      </div>
     </section>
 
     <section id="settings-page" aria-labelledby="settings-heading" hidden>
-      <h2 id="settings-heading">Settings and privacy</h2>
-      <p>Phase stores your records in this browser on this device. It has no analytics, advertising, tracking, or third-party runtime resources, and does not send your records to anyone.</p>
-      <p>Browser storage is not a backup and can be lost. Keep your own JSON backups. Exports are unencrypted; secure your device and exported files.</p>
-      <h3>Backup and export</h3>
-      <p>JSON includes daily observations, period starts, history reviews, and check-in dismissals. CSV includes daily observations and period-start markers only, not reviews or dismissals, and cannot be restored here. Unrecorded days are omitted, not exported as none.</p>
-      <div class="editor-actions">
-        <button id="export-json" type="button" disabled>Export JSON backup</button>
-        <button id="export-csv" type="button" disabled>Export observations CSV</button>
+      <div class="page-heading"><div><p class="eyebrow">IN YOUR HANDS</p><h1 id="settings-heading">Your data</h1><p class="page-intro">Keep a backup and manage what's saved.</p></div></div>
+      <div class="settings-layout">
+        <div>
+          <section class="panel" aria-labelledby="backup-heading">
+            <div class="card-eyebrow"><svg class="icon" aria-hidden="true"><use href="#icon-shield"/></svg><h2 id="backup-heading">Keep a copy</h2></div>
+            <p>Your diary lives in this browser. Browser storage can be lost, so keep a backup somewhere you trust.</p>
+            <button id="export-json" class="primary" type="button" disabled>Save a backup</button>
+            <p class="field-help">A complete JSON copy you can restore here. Keep this unencrypted file somewhere secure.</p>
+            <details><summary>Need a spreadsheet instead?</summary><p>CSV exports your logged days and period-start markers. History answers, dismissed check-ins, and unlogged days are left out. Use a JSON backup for a file you can restore here.</p><button id="export-csv" type="button" disabled>Export observations CSV</button></details>
+          </section>
+          <section class="panel" aria-labelledby="restore-heading">
+            <h2 id="restore-heading">Bring back a backup</h2>
+            <p>Choose a Phase JSON backup. You can review it before anything changes.</p>
+            <p class="field-help">Restoring replaces your entire diary, including history answers and dismissed check-ins. It does not merge and cannot be undone. Save a backup of this diary first if you want to keep it.</p>
+            <label class="file-label" for="import-file">Choose a backup file</label>
+            <input id="import-file" type="file" accept=".json,application/json" disabled>
+            <button id="preview-import" type="button" disabled>Preview restore</button>
+            <p class="field-help">The file stays on this device. Nothing is uploaded.</p>
+          </section>
+          <section class="panel danger-panel" aria-labelledby="delete-heading">
+            <h2 id="delete-heading">A fresh start</h2>
+            <p>Delete this browser's saved diary, history answers, and dismissed check-ins. Downloaded files and other devices are unaffected.</p>
+            <button id="delete-data" class="danger" type="button" disabled>Delete all data</button>
+          </section>
+          <p id="settings-error" class="error" role="alert" hidden></p>
+        </div>
+        <div>
+          <section class="panel privacy-panel" aria-labelledby="privacy-heading">
+            <svg class="icon privacy-icon" aria-hidden="true"><use href="#icon-shield"/></svg>
+            <h2 id="privacy-heading">Private by design.</h2>
+            <p>No accounts. No analytics, advertising, tracking, or cloud sync. Your records stay in this browser on this device. Phase does not send them to anyone.</p>
+            <details><summary>The full picture</summary><p>There are no third-party runtime resources. GitHub Pages receives ordinary website-request metadata. Other apps on the same origin could technically access this storage. The owner promises that other apps they publish there will not read or share your records. You can self-host on a separate origin if you prefer.</p><p>Secure your device and unencrypted exports. Do not include real health records in public issues or screenshots.</p></details>
+          </section>
+          <section class="panel" aria-labelledby="offline-heading">
+            <h2 id="offline-heading">Here, even offline</h2>
+            <p id="offline-status" aria-live="polite">Getting ready for offline use...</p>
+            <details><summary>Installation and updates</summary><p>After a successful first online visit, Phase can load offline. Where supported, use your browser's Install or Add to Home Screen action. Only app files are cached, never your diary or exports.</p><p>Phase checks for updates on opening and when you return. Choose 'Restart to update' when you're ready. Minimizing the app leaves the update waiting. Restart keeps your records but clears Undo. Other open windows do not restart automatically.</p></details>
+          </section>
+          <p class="app-footnote">Phase cannot diagnose health conditions. Do not rely on its estimates for contraception.</p>
+        </div>
       </div>
-      <h3>Restore a JSON backup</h3>
-      <p>Restore replaces your entire diary, including reviews and dismissals. It does not merge records and cannot be undone. Export your current diary first if you want to keep it. The file is read on this device, never uploaded.</p>
-      <label for="import-file">Phase JSON backup</label>
-      <input id="import-file" type="file" accept=".json,application/json" disabled>
-      <button id="preview-import" type="button" disabled>Preview restore</button>
-      <h3>Delete saved data</h3>
-      <p>Delete all Phase records, history reviews, and check-in dismissals in this browser. Downloaded exports and records in other browsers or devices are not deleted.</p>
-      <button id="delete-data" class="danger" type="button" disabled>Delete all data</button>
-      <p id="settings-error" class="error" role="alert" hidden></p>
-      <p>GitHub Pages receives ordinary website-request metadata. Other apps on the same origin could technically access this storage. The owner promises that other apps they publish there will not read or share your records; use a separate origin if you do not want to rely on that promise.</p>
-      <h3>Offline use and updates</h3>
-      <p id="offline-status" aria-live="polite">Preparing offline use...</p>
-      <p>Where supported, use your browser's Install or Add to Home Screen action to open Phase as an app. Offline use needs a successful first online visit; only application files are cached, never your diary or exports.</p>
-      <p>Phase checks for updates when opened and when you return to it. An update waits for you to choose Restart to update; minimizing the app does not apply it. Restart clears session Undo but keeps saved records. Other open windows are not automatically restarted.</p>
-      <p>This is a diary, not a diagnostic tool or a method of contraception. There are no accounts or cloud sync.</p>
-      <p>Do not include real health records in public issues or screenshots.</p>
     </section>
   </main>
 
   <dialog id="data-editor" aria-labelledby="data-heading" aria-describedby="data-help">
     <form id="data-form">
+      <p class="eyebrow">YOUR DATA, YOUR CHOICE</p>
       <h2 id="data-heading"></h2>
       <p id="data-help"></p>
-      <p id="data-current"></p>
-      <p id="data-incoming"></p>
-      <label class="checkbox-label">
-        <input id="data-approval" type="checkbox">
-        <span id="data-approval-label"></span>
-      </label>
+      <div class="data-counts"><p id="data-current"></p><p id="data-incoming"></p></div>
+      <label class="checkbox-label approval"><input id="data-approval" type="checkbox"><span id="data-approval-label"></span></label>
       <p id="data-error" class="error" role="alert" hidden></p>
-      <div class="editor-actions">
-        <button id="confirm-data" type="submit" class="danger" disabled></button>
-        <button id="cancel-data" type="button">Cancel</button>
-      </div>
+      <div class="editor-actions"><button id="confirm-data" type="submit" class="danger" disabled></button><button id="cancel-data" type="button">Cancel</button></div>
     </form>
   </dialog>
 
   <dialog id="day-editor" aria-labelledby="editor-heading" aria-describedby="editor-help">
-    <form id="day-form">
+    <form id="day-form" novalidate>
+      <div class="dialog-top"><p class="eyebrow">A MOMENT FOR YOUR DIARY</p><button id="cancel-editor" class="icon-button" type="button" aria-label="Cancel"><svg class="icon" aria-hidden="true"><use href="#icon-close"/></svg></button></div>
       <h2 id="editor-heading"></h2>
-      <p id="editor-current"></p>
-      <p id="editor-help">Not recorded is different from no bleeding. Saving this day does not fill in neighbouring days.</p>
-      <label for="bleeding">Bleeding</label>
-      <select id="bleeding" name="bleeding">
-        <option value="">Choose an observation</option>
-        <option value="none">None</option>
-        <option value="spotting">Spotting</option>
-        <option value="light">Light</option>
-        <option value="medium">Medium</option>
-        <option value="heavy">Heavy</option>
-      </select>
-      <label class="checkbox-label">
-        <input id="period-start" type="checkbox" name="periodStart">
-        Period started this day
-      </label>
-      <p>A period start requires light, medium, or heavy bleeding.</p>
+      <p id="editor-current" class="muted"></p>
+      <fieldset id="bleeding" class="flow-choices">
+        <legend>How was your flow?</legend>
+        <label><input type="radio" name="bleeding" value="none"><span class="flow-option"><span class="flow-symbol"><svg class="icon" aria-hidden="true"><use href="#icon-none"/></svg></span><span>No bleeding</span></span></label>
+        <label><input type="radio" name="bleeding" value="spotting"><span class="flow-option"><span class="flow-symbol"><span class="spotting-mark" aria-hidden="true"></span></span><span>Spotting</span></span></label>
+        <label><input type="radio" name="bleeding" value="light"><span class="flow-option"><span class="flow-symbol drops" aria-hidden="true"><svg class="icon"><use href="#icon-drop"/></svg></span><span>Light</span></span></label>
+        <label><input type="radio" name="bleeding" value="medium"><span class="flow-option"><span class="flow-symbol drops" aria-hidden="true"><svg class="icon"><use href="#icon-drop"/></svg><svg class="icon"><use href="#icon-drop"/></svg></span><span>Medium</span></span></label>
+        <label><input type="radio" name="bleeding" value="heavy"><span class="flow-option"><span class="flow-symbol drops" aria-hidden="true"><svg class="icon"><use href="#icon-drop"/></svg><svg class="icon"><use href="#icon-drop"/></svg><svg class="icon"><use href="#icon-drop"/></svg></span><span>Heavy</span></span></label>
+      </fieldset>
+      <label class="checkbox-label period-toggle"><input id="period-start" type="checkbox" name="periodStart"><span><strong>Period started this day</strong><small>Mark the first day of your period.</small></span><svg class="icon" aria-hidden="true"><use href="#icon-start"/></svg></label>
+      <p id="editor-help" class="field-help">Only this day changes. Unlogged days stay blank.</p>
       <p id="editor-error" class="error" role="alert" hidden></p>
       <div id="marker-conflict" class="conflict" role="group" aria-labelledby="conflict-message" hidden>
-        <p id="conflict-message" role="alert"></p>
-        <button id="resolve-conflict" type="button"></button>
-        <button id="keep-editing" type="button">Keep editing</button>
+        <p id="conflict-message" role="alert"></p><button id="resolve-conflict" class="danger" type="button"></button><button id="keep-editing" type="button">Keep editing</button>
       </div>
-      <div class="editor-actions">
-        <button id="save-day" type="submit">Save</button>
-        <button id="clear-day" class="danger" type="button">Clear day's record</button>
-        <button id="cancel-editor" type="button">Cancel</button>
-      </div>
+      <div class="editor-actions day-actions"><button id="save-day" class="primary" type="submit">Save<svg class="icon" aria-hidden="true"><use href="#icon-check"/></svg></button><button id="clear-day" class="danger text-button" type="button">Clear day's record</button></div>
     </form>
   </dialog>
 
   <dialog id="bulk-editor" aria-labelledby="bulk-heading" aria-describedby="bulk-help">
     <form id="bulk-form">
-      <h2 id="bulk-heading">Resolve period-start conflicts</h2>
-      <p id="bulk-help">Only conflicting dates are listed below. Approve each period-start removal to save the whole batch, or go back to change the selection or action. No selected day changes until the entire batch saves.</p>
-      <p id="bulk-summary"></p>
-      <ul id="bulk-preview" class="bulk-preview"></ul>
-      <p id="bulk-error" class="error" role="alert" hidden></p>
-      <div class="editor-actions">
-        <button id="save-bulk" type="submit">Save batch</button>
-        <button id="cancel-bulk" type="button">Back to selection</button>
-      </div>
+      <p class="eyebrow">ONE THING TO CHECK</p><h2 id="bulk-heading">Remove these period starts?</h2>
+      <p id="bulk-help">This change would remove the period starts below. Approve each removal to save, or go back and change your selection. Nothing changes until the whole batch saves.</p>
+      <p id="bulk-summary"></p><ul id="bulk-preview" class="bulk-preview"></ul><p id="bulk-error" class="error" role="alert" hidden></p>
+      <div class="editor-actions"><button id="save-bulk" class="primary" type="submit">Save batch</button><button id="cancel-bulk" type="button">Back to selection</button></div>
     </form>
   </dialog>
 
   <dialog id="review-editor" aria-labelledby="review-heading" aria-describedby="review-help">
     <form id="review-form" novalidate>
-      <h2 id="review-heading"></h2>
-      <p id="review-help">Are all period starts in this span recorded? Daily logging is not required. For a span since the latest start, confirming means no further period occurred through the displayed end date.</p>
-      <p id="review-boundaries"></p>
-      <p id="review-starts"></p>
-      <div id="review-replacement" hidden>
-        <p>Existing answers affected:</p>
-        <ul id="review-existing"></ul>
-        <label class="checkbox-label">
-          <input id="review-replace" type="checkbox">
-          I understand that saving replaces, or removing deletes, all answers listed above.
-        </label>
+      <p class="eyebrow">A QUICK HISTORY CHECK</p><h2 id="review-heading"></h2>
+      <p id="review-help">Have you recorded every period start between these dates? You do not need daily observations. If this includes today, think about whether another period has started since your last recorded one.</p>
+      <p id="review-boundaries" class="field-help"></p><p id="review-starts" class="recorded-starts"></p>
+      <div id="review-replacement" class="review-replacement" hidden>
+        <p><strong>Earlier answers will be replaced</strong></p><ul id="review-existing"></ul>
+        <label class="checkbox-label approval"><input id="review-replace" type="checkbox"><span>I understand that saving replaces, or removing deletes, all answers listed above.</span></label>
       </div>
-      <p id="review-missing-warning" class="notice" hidden>Missing starts were reported in this span. Choosing Unsure keeps that report unresolved. Confirm all starts are recorded only if no missing starts remain. Removing the answers also removes this warning.</p>
-      <label for="review-answer">Start-history completeness</label>
-      <select id="review-answer">
-        <option value="">Choose an answer</option>
-        <option value="complete">All period starts in this span are recorded</option>
-        <option value="missing">One or more starts are missing; I cannot remember their dates</option>
-        <option value="unsure">I am unsure whether all starts are recorded</option>
-      </select>
-      <p>If you remember a missing date, add the actual start instead. This closes the review without saving its draft answer.</p>
-      <label for="review-add-date">Remembered start date</label>
-      <input id="review-add-date" type="date">
-      <button id="add-remembered-start" type="button">Add a remembered start</button>
+      <p id="review-missing-warning" class="notice" hidden>You previously reported missing starts here. “I'm not sure” keeps that warning. Only confirm everything is recorded if no missing starts remain. Removing the answers also removes the warning.</p>
+      <fieldset id="review-answer" class="answer-choices">
+        <legend>What do you remember?</legend>
+        <label><input type="radio" name="reviewAnswer" value="complete"><span><strong>Everything is recorded</strong><small>All period starts in these dates are in my diary.</small></span></label>
+        <label><input type="radio" name="reviewAnswer" value="missing"><span><strong>Some starts are missing</strong><small>I had another period, but cannot remember when.</small></span></label>
+        <label><input type="radio" name="reviewAnswer" value="unsure"><span><strong>I'm not sure</strong><small>Leave this part of my history uncertain.</small></span></label>
+      </fieldset>
+      <details id="remembered-start" class="remembered-start">
+        <summary>Remember a missing start date?</summary><p>Add it to your diary instead. This closes the question without saving your draft answer. Adding a date does not automatically resolve an earlier report of missing starts.</p>
+        <label for="review-add-date">Remembered start date</label><input id="review-add-date" type="date"><button id="add-remembered-start" type="button">Add a remembered start</button>
+      </details>
       <p id="review-error" class="error" role="alert" hidden></p>
-      <div class="editor-actions">
-        <button id="save-review" type="submit">Save review</button>
-        <button id="remove-review" type="button" class="danger">Remove listed answers</button>
-        <button id="cancel-review" type="button">Close without saving</button>
-      </div>
+      <div class="editor-actions"><button id="save-review" class="primary" type="submit">Save review</button><button id="cancel-review" type="button">Close without saving</button><button id="remove-review" type="button" class="danger text-button">Remove listed answers</button></div>
     </form>
   </dialog>
 </body>

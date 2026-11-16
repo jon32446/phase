@@ -43,7 +43,7 @@ async function openReview(page, id = span(), list = 'intervals') {
 }
 
 async function answer(page, value) {
-  await page.getByLabel('Start-history completeness').selectOption(value);
+  await page.locator(`#review-answer input[value="${value}"]`).check();
   if (await page.locator('#review-replacement').isVisible()) await page.locator('#review-replace').check();
   await page.getByRole('button', { name: 'Save review', exact: true }).click();
   await expect(page.locator('#review-editor')).not.toBeVisible();
@@ -64,7 +64,7 @@ async function externalStart(page, date, periodStart = true) {
 async function editStart(page, date, periodStart) {
   await page.getByRole('button', { name: 'Calendar', exact: true }).click();
   await page.locator(`#calendar button[data-date="${date}"]`).click();
-  await page.getByLabel('Bleeding', { exact: true }).selectOption('medium');
+  await page.getByRole('radio', { name: 'Medium', exact: true }).check();
   await page.getByLabel('Period started this day').setChecked(periodStart);
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.locator('#day-editor')).not.toBeVisible();
@@ -74,10 +74,10 @@ async function editStart(page, date, periodStart) {
 for (const path of ['/', '/phase/']) {
   test(`manual reviews preserve sparse observations, persist, and stop at the reviewed date under ${path}`, async ({ page }) => {
     await ready(page, path);
-    await expect(page.locator('#cycle-summary')).toHaveText(/1 usable.*0 confirmed complete, 1 provisional.*4-4 days/);
+    await expect(page.locator('#cycle-summary')).toHaveText(/4 days between starts.*1 usable.*0 confirmed complete, 1 provisional/);
     const before = (await state(page)).records;
     await openReview(page);
-    await expect(page.getByLabel('Start-history completeness')).toBeFocused();
+    await expect(page.locator('#review-answer input[value="complete"]')).toBeFocused();
     await answer(page, 'complete');
     await expect(page.locator('#intervals li')).toHaveAttribute('data-status', 'complete');
     expect((await state(page)).records).toEqual(before);
@@ -87,7 +87,7 @@ for (const path of ['/', '/phase/']) {
     await page.reload();
     await expect(page.getByRole('status')).toHaveText('Local records ready.');
     await page.getByRole('button', { name: 'History', exact: true }).click();
-    await expect(page.locator('#open-span')).toContainText('through 2026-11-09');
+    await expect(page.locator('#open-span')).toContainText('5 – 9 Nov 2026');
     const saved = (await state(page)).reviews;
     expect(saved.map((review) => review.end)).toEqual(['2026-11-05', '2026-11-08']);
     await expect(page.getByRole('dialog')).not.toBeVisible();
@@ -101,22 +101,23 @@ test('adding a remembered start does not resolve a missing report; unsure retain
   await answer(page, 'missing');
   await expect(page.locator('#cycle-summary')).toContainText('No usable completed intervals');
   await openReview(page);
+  await page.getByText('Remember a missing start date?', { exact: true }).click();
   await page.getByLabel('Remembered start date').fill('2026-11-03');
   await page.getByRole('button', { name: 'Add a remembered start', exact: true }).click();
   await expect(page.locator('#day-editor')).toBeVisible();
   await expect(page.getByLabel('Period started this day')).toBeChecked();
-  await page.getByLabel('Bleeding', { exact: true }).selectOption('light');
+  await page.getByRole('radio', { name: 'Light', exact: true }).check();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.locator('#day-editor')).not.toBeVisible();
   await expect(page.locator('#intervals li[data-status="missing"]')).toHaveCount(2);
-  await expect(page.locator('#history-reviews')).toContainText('needs review');
+  await expect(page.locator('#history-reviews')).toContainText('recorded starts have changed since this answer');
   expect((await state(page)).records).toEqual([
     startRecord('2026-11-01'),
     { date: '2026-11-03', bleeding: 'light', periodStart: true },
     startRecord('2026-11-05')
   ]);
   await openReview(page, span('2026-11-01', '2026-11-03'));
-  await expect(page.locator('#review-heading')).toHaveText('Review 2026-11-01 through 2026-11-05');
+  await expect(page.locator('#review-heading')).toHaveText('1 – 5 Nov 2026');
   await expect(page.locator('#review-boundaries')).toContainText('full span');
   await answer(page, 'unsure');
   const unsure = (await state(page)).reviews[0];
@@ -146,7 +147,7 @@ test('review corrections and removals are undoable and require explicit replacem
   await page.getByRole('button', { name: 'History', exact: true }).click();
   await expect(page.locator('#intervals li')).toHaveAttribute('data-status', 'unresolved');
   await openReview(page, span(), 'history-reviews');
-  await page.getByLabel('Start-history completeness').selectOption('complete');
+  await page.locator('#review-answer input[value="complete"]').check();
   await expect(page.getByRole('button', { name: 'Save review', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Remove listed answers', exact: true })).toBeDisabled();
   await page.locator('#review-replace').check();
@@ -186,7 +187,7 @@ test('start corrections invalidate both adjacent reviews and replacing them cove
   expect(current.reviews[0]).toMatchObject({ start: '2026-11-01', end: '2026-11-05', answer: 'missing' });
   await editStart(page, '2026-11-03', true);
   await openReview(page, span('2026-11-03', '2026-11-05'));
-  await expect(page.locator('#review-heading')).toContainText('2026-11-01 through 2026-11-05');
+  await expect(page.locator('#review-heading')).toHaveText('1 – 5 Nov 2026');
   await expect(page.locator('#review-existing li')).toHaveCount(1);
 });
 
@@ -196,7 +197,7 @@ test('bleeding-only edits and outside start changes leave review answers valid',
   await answer(page, 'complete');
   const original = (await state(page)).reviews;
   await page.locator('#history button[data-date="2026-11-01"]').click();
-  await page.getByLabel('Bleeding', { exact: true }).selectOption('heavy');
+  await page.getByRole('radio', { name: 'Heavy', exact: true }).check();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.locator('#day-editor')).not.toBeVisible();
   expect((await state(page)).reviews).toEqual(original);
@@ -221,7 +222,7 @@ test('failed review writes and failed start invalidation leave all committed hea
     };
   });
   await openReview(page);
-  await page.getByLabel('Start-history completeness').selectOption('missing');
+  await page.locator('#review-answer input[value="missing"]').check();
   await page.locator('#review-replace').check();
   await page.getByRole('button', { name: 'Save review', exact: true }).click();
   await expect(page.locator('#review-error')).toContainText('not saved');
@@ -229,7 +230,7 @@ test('failed review writes and failed start invalidation leave all committed hea
   await page.getByRole('button', { name: 'Close without saving' }).click();
   await page.getByRole('button', { name: 'Calendar', exact: true }).click();
   await page.locator('#calendar button[data-date="2026-11-03"]').click();
-  await page.getByLabel('Bleeding', { exact: true }).selectOption('light');
+  await page.getByRole('radio', { name: 'Light', exact: true }).check();
   await page.getByLabel('Period started this day').check();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.locator('#editor-error')).toContainText('not saved');
@@ -247,7 +248,7 @@ test('stale reviews and stale review Undo cannot overwrite intervening start or 
   await ready(page);
   await openReview(page);
   await externalStart(page, '2026-11-03');
-  await page.getByLabel('Start-history completeness').selectOption('complete');
+  await page.locator('#review-answer input[value="complete"]').check();
   await page.getByRole('button', { name: 'Save review', exact: true }).click();
   await expect(page.locator('#review-error')).toContainText('changed elsewhere');
   expect((await state(page)).reviews).toEqual([]);
@@ -342,7 +343,7 @@ test('review dialog supports keyboard focus, touch-sized layout, and no-change s
   await openReview(page);
   await page.getByRole('button', { name: 'Close without saving' }).focus();
   await page.keyboard.press('Tab');
-  await expect(page.getByLabel('Start-history completeness')).toBeFocused();
+  await expect(page.locator('#review-answer input[value="complete"]')).toBeFocused();
   await page.keyboard.press('Shift+Tab');
   await expect(page.getByRole('button', { name: 'Close without saving' })).toBeFocused();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

@@ -42,7 +42,7 @@ async function history(page) {
 }
 
 async function answer(page, value) {
-  await page.getByLabel('Start-history completeness').selectOption(value);
+  await page.locator(`#review-answer input[value="${value}"]`).check();
   if (await page.locator('#review-replacement').isVisible()) await page.locator('#review-replace').check();
   await page.getByRole('button', { name: 'Save review', exact: true }).click();
   await expect(page.locator('#review-editor')).not.toBeVisible();
@@ -56,15 +56,17 @@ for (const path of ['/', '/phase/']) {
     page.on('pageerror', (error) => errors.push(error.message));
     await ready(page, REGULAR, path);
     await expect(page.locator('#forecast')).toHaveAttribute('data-state', 'available');
-    await expect(page.locator('#estimate-text')).toHaveText('Estimated next-period range: 2026-11-16 to 2026-11-20.');
+    await expect(page.locator('#estimate-text')).toHaveText('16 – 20 Nov 2026');
     await expect(page.locator('#estimate-method')).toContainText('4 usable intervals among the latest six, including 4 provisional');
-    await expect(page.locator('#estimate-method')).toContainText('not a guarantee');
+    await expect(page.locator('#estimate-method')).toContainText("We haven't established how reliably this range predicts a period start");
+    await expect(page.locator('#estimate-method')).toContainText('Do not use it for contraception');
     expect((await state(page)).records).toHaveLength(5);
     expect((await state(page)).reviews).toEqual([]);
     await page.clock.fastForward(13 * 86400000);
     await page.getByRole('button', { name: 'Calendar', exact: true }).click();
     await expect(page.locator('#forecast')).toHaveAttribute('data-state', 'passed');
-    await expect(page.locator('#estimate-text')).toHaveText('Estimated window has passed: 2026-11-16 to 2026-11-20.');
+    await expect(page.locator('#estimate-text')).toHaveText('16 – 20 Nov 2026');
+    await expect(page.locator('#estimate-note')).toContainText('window has passed');
     await page.reload();
     await expect(page.getByRole('status')).toHaveText('Local records ready.');
     await expect(page.locator('#forecast')).toHaveAttribute('data-state', 'passed');
@@ -98,18 +100,19 @@ test('a detected historical gap blocks forecasts; confirmation keeps its actual 
   await expect(page.locator('#checkins-heading')).toBeFocused();
   await expect(card(page)).toHaveAttribute('data-reason', 'long');
   await expect(card(page)).toContainText('48 days');
+  await card(page).getByText('Why this question?', { exact: true }).click();
   await expect(card(page)).toContainText('over 42 days');
-  await expect(card(page)).toContainText('not a medical cutoff');
+  await expect(card(page)).toContainText('It cannot establish whether another period occurred or assess your health');
   await expect(page.locator('#intervals li[data-status="unresolved"]')).toHaveCount(1);
   const before = await state(page);
-  await card(page).getByRole('button', { name: /^Review history / }).click();
+  await card(page).getByRole('button', { name: /^Check history:/ }).click();
   await answer(page, 'complete');
   await expect(card(page)).toHaveCount(0);
   await expect(page.locator('#intervals li[data-status="complete"]')).toHaveCount(1);
   await expect(page.locator('#cycle-summary')).toContainText('28-48 days');
   await page.getByRole('button', { name: 'Calendar', exact: true }).click();
   await expect(page.locator('#forecast')).toHaveAttribute('data-state', 'available');
-  await expect(page.locator('#estimate-text')).toContainText('2026-11-16 to 2026-12-10');
+  await expect(page.locator('#estimate-text')).toHaveText('16 Nov – 10 Dec 2026');
   expect((await state(page)).records).toEqual(before.records);
   await page.getByRole('button', { name: 'Undo last edit' }).click();
   await expect(page.locator('#forecast')).toHaveAttribute('data-state', 'blocked');
@@ -119,15 +122,15 @@ test('a detected historical gap blocks forecasts; confirmation keeps its actual 
 test('known-missing completed gaps are excluded; Unsure stays blocking without renewed automatic prompts', async ({ page }) => {
   await ready(page, LONG);
   await history(page);
-  await card(page).getByRole('button', { name: /^Review history / }).click();
+  await card(page).getByRole('button', { name: /^Check history:/ }).click();
   await answer(page, 'missing');
   await page.getByRole('button', { name: 'Calendar', exact: true }).click();
   await expect(page.locator('#forecast')).toHaveAttribute('data-state', 'available');
   await expect(page.locator('#estimate-method')).toContainText('3 usable intervals');
-  await expect(page.locator('#estimate-text')).toContainText('2026-11-16 to 2026-11-20');
+  await expect(page.locator('#estimate-text')).toHaveText('16 – 20 Nov 2026');
   await page.getByRole('button', { name: 'Undo last edit' }).click();
   await history(page);
-  await card(page).getByRole('button', { name: /^Review history / }).click();
+  await card(page).getByRole('button', { name: /^Check history:/ }).click();
   await answer(page, 'unsure');
   await expect(card(page)).toHaveCount(0);
   await page.reload();
@@ -142,7 +145,7 @@ test('known-missing completed gaps are excluded; Unsure stays blocking without r
 test('dismissal persists without resolving history or replacing the previous ordinary Undo', async ({ page }) => {
   await ready(page, LONG);
   await page.locator('#calendar button[data-date="2026-11-02"]').click();
-  await page.getByLabel('Bleeding', { exact: true }).selectOption('none');
+  await page.getByRole('radio', { name: 'No bleeding', exact: true }).check();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.locator('#day-editor')).not.toBeVisible();
   const description = await page.locator('#undo-description').textContent();
@@ -198,10 +201,11 @@ test('start corrections clear obsolete dismissal context and Undo restores it at
   await expect(card(page)).toHaveCount(0);
   const original = await state(page);
   await page.locator('#intervals button[data-span="2026-09-03/2026-10-21"]').click();
+  await page.getByText('Remember a missing start date?', { exact: true }).click();
   await page.getByLabel('Remembered start date').fill('2026-10-01');
   await page.getByRole('button', { name: 'Add a remembered start', exact: true }).click();
   await expect(page.locator('#day-editor')).toBeVisible();
-  await page.getByLabel('Bleeding', { exact: true }).selectOption('light');
+  await page.getByRole('radio', { name: 'Light', exact: true }).check();
   await page.evaluate(() => {
     const remove = IDBObjectStore.prototype.delete;
     window.restoreDelete = () => { IDBObjectStore.prototype.delete = remove; };
@@ -252,7 +256,7 @@ test('limited-history fallback and dismissal errors remain non-blocking and fit 
   await expect(page.locator('#forecast')).toHaveAttribute('data-state', 'insufficient');
   await history(page);
   await expect(page.locator('.checkin-card[data-reason="limited"]')).toHaveCount(2);
-  await expect(page.locator('#history-checkins')).toContainText('no population-based duration cutoff');
+  await expect(page.locator('#history-checkins')).toContainText('No general cycle-length cutoff has been applied');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const before = await state(page);
   await page.evaluate(() => {

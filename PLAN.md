@@ -38,18 +38,22 @@ Symptoms, ovulation/fertility inference, clinical alerts, accounts, sync, encryp
 
 ## User interface
 
+Use a calm, friendly visual language with clear action hierarchy, labelled graphical controls, and brief everyday wording. Keep detailed methods and explanations available through optional disclosures rather than requiring users to read them before logging. Preserve uncertainty, privacy disclosures, and explicit approval of destructive changes. No streaks, logging targets, or pressure to establish a daily habit.
+
+Use direct, concrete app copy. Avoid contrast slogans such as "X, not Y" and semicolon-linked explanations. Keep ordinary negatives where they communicate uncertainty, failure, or a necessary warning.
+
 ### Calendar
 
-Use a monthly calendar as the main screen, with month navigation and a Today control. A compact next-period estimate may appear above it when supported by the history. Insufficient history should produce an explanation, not an invented default date.
+Use a monthly calendar as the main screen, with month navigation, a Today control, and a prominent Log today action. Log today returns to the current month and opens today's editor. Keep the calendar before supporting information on phones; place the next-period estimate alongside it on larger screens. Insufficient history should produce a brief explanation, not an invented default date. Keep sample and unconfirmed-history counts visible when an estimate exists, with methodology in About this estimate.
 
 Tapping a date opens a small day editor with:
 
 - The selected date and current observation.
-- Bleeding: none, spotting, light, medium, or heavy.
+- Visible, labelled radio choices for bleeding: no bleeding, spotting, light, medium, or heavy. Use one, two, or three local SVG drops for light, medium, and heavy; use separate symbols for no bleeding and spotting.
 - A separate "Period started this day" control.
-- Save and a clearly described way to clear the day's record.
+- A primary Save action, a close control, and a quieter clear-record action when a record exists.
 
-Not recorded must remain distinct from none. A period-start marker requires a non-spotting bleeding observation; inconsistent edits must prompt the user to resolve the marker rather than silently changing their history.
+Unrecorded days stay visually blank, distinct from an explicit no-bleeding symbol. A flag marks a recorded period start separately from flow; selection uses an outline and checkmark. Dates retain full accessible observation names. A period-start marker requires a non-spotting bleeding observation; inconsistent edits must prompt the user to resolve the marker rather than silently changing their history.
 
 Historical dates are editable without an arbitrary age limit. Future dates are for viewing estimates, not recording observations.
 
@@ -57,7 +61,7 @@ Historical dates are editable without an arbitrary age limit. Future dates are f
 
 Provide an explicit "Select days" mode rather than requiring hidden gestures. Users can tap dates across multiple months and retain their selection while navigating.
 
-A sticky selection bar shows the selection count, bleeding-value actions, a clear-observations action, and Cancel. Bulk actions affect bleeding observations, not period-start markers. If a change conflicts with an existing start marker, the user must resolve it explicitly before the batch commits.
+A floating selection bar shows the selection count, labelled bleeding-value actions, a clear-observations action, and Cancel. Keep it above phone navigation with enough scrolling space to reach every calendar day. Entering selection focuses today when visible, or the first available date. Bulk actions affect bleeding observations, not period-start markers. If a change conflicts with an existing start marker, the user must resolve it explicitly before the batch commits.
 
 Show existing values during selection, including mixed observations and unknown days. Use selection outlines or checkmarks separately from the symbols/colours representing bleeding. Apply conflict-free actions directly, including clear observations, and commit each batch atomically.
 
@@ -65,13 +69,15 @@ Agreed bulk-interaction rules: the calendar is the review surface for conflict-f
 
 Offer one-step, session-only, in-memory Undo for ordinary edits, including history-review answers. Undo is not a persistent audit history and is not available after complete deletion.
 
+Save confirmations describe the changed observation, cleared dates, or history-answer span and offer Undo plus an explicitly labelled dismiss control. Switching tabs dismisses the confirmation. Dismissal only hides the notification: a quieter Undo last edit action and its edit description remain in the app header for as long as Undo is available. Neither notification dismissal nor navigation expires Undo, and there is no timed cutoff.
+
 Agreed first-release interaction rules: weeks start on Monday. A conflicting edit offers explicit marker removal inside its preview rather than requiring a separate correction workflow; observation changes and separately authorised marker removals commit together. Clearing a day with a recorded start requires confirmation to remove both its observation and marker. Undo restores the latest changed ordinary edit atomically, including its marker and affected history reviews. It has no timeout and is replaced by the next successful changed edit; successful Undo, reload, successful backup restore, and complete deletion clear it. Undo retains only actually changed dates and affected review state, not unchanged selections or a recovery copy of the diary. Navigation, selection, cancelled edits, failed saves, and unchanged saves do not replace Undo. Undo checks affected records, reviews, and reviewed-start context before restoring anything, rejecting intervening changes without partial restoration. There is no redo or persistent undo history; backup restore is outside ordinary-edit Undo.
 
 ### History and settings
 
-Use three main destinations: Calendar, History, and Settings.
+Use three main destinations: Calendar, History, and Settings, in a persistent bottom navigation bar on phones and a header navigation on larger screens.
 
-History shows period starts, completed intervals, and basic summaries. Make corrections reachable without asking users to reconstruct their history.
+History shows editable period starts in a timeline, completed-interval cards with readable date ranges, and a concise length summary. Keep confirmed and provisional counts distinct, explain exclusions in optional help, and make corrections reachable without asking users to reconstruct their history.
 
 Provide neutral, dismissible check-ins where a gap in recorded starts may conceal missing history, both between historical starts and since the latest start. Do not require daily logging or filling intervening days with "none" to establish usable start history. Check-ins must not block ordinary logging or label a long interval abnormal.
 
@@ -81,13 +87,17 @@ Remember answers so the same answered span does not repeatedly prompt. A confirm
 
 Agreed review interaction: manual review actions live in History, between consecutive recorded starts and from the latest start through today when that span has elapsed days. Saved answers remain directly reachable for correction or removal even if later start corrections change the interval boundaries. Reviews are non-blocking; closing without saving makes no change, and unsure answers remain visibly unresolved without repeatedly opening a dialog. Remembered missing dates open the ordinary day editor for an explicit start and bleeding observation; the unsaved review answer is not saved.
 
-Automatic check-ins appear as non-modal History cards, not interrupting dialogs. A compact Calendar notice links to History when an estimate is withheld or history is insufficient. Dismissal records no completeness answer and does not change calculation eligibility or replace ordinary Undo. Persist dismissals against the reviewed span and its recorded-start context; an open span is identified by its latest-start anchor, not by a new identity each day. Dismissed or unsure spans do not prompt again unless their recorded starts change. Existing review answers and current interval statuses remain manually accessible even when cards are suppressed.
+Present history answers as visible radio choices: Everything is recorded, Some starts are missing, and I'm not sure, each with a short explanation. Keep the remembered-date path in an optional disclosure and the remove-answer action available only when an earlier answer exists. Show any replacement approvals and unresolved missing-start warning before committing a changed answer.
+
+Automatic check-ins appear as non-modal History cards, not interrupting dialogs. A compact Calendar card links to History when an estimate is withheld, or history is insufficient and records already exist; an empty diary keeps the focus on starting to log. Dismissal records no completeness answer and does not change calculation eligibility or replace ordinary Undo. Persist dismissals against the reviewed span and its recorded-start context; an open span is identified by its latest-start anchor, not by a new identity each day. Dismissed or unsure spans do not prompt again unless their recorded starts change. Existing review answers and current interval statuses remain manually accessible even when cards are suppressed.
 
 After confirming an open span, wait at least seven calendar days beyond the reviewed end date before another automatic check-in, and require the personal duration trigger to remain applicable; if personal history is insufficient, use the neutral limited-history explanation instead. Confirmation never extends beyond the dates actually reviewed. Merge overlapping check-in spans so one affected review is not separately prompted as both historical and open history. Saving or removing a review supersedes overlapping dismissal preferences. Start corrections remove obsolete dismissal contexts in the same transaction, and ordinary Undo restores applicable dismissal effects alongside days and review answers.
 
 Every answer covers fixed dates. Adjacent spans may share a boundary date without replacing one another. When a requested review overlaps an existing answer beyond a shared boundary, expand the review to include the full span of every overlapping answer, including transitive overlaps. Show the final dates and all affected answers, and require unchecked-by-default approval before replacing or removing them. Do not silently drop warnings outside a newly requested subspan.
 
 Settings provides import/export, the privacy explanation, and a prominent red "Delete all data" action. Require explicit confirmation explaining that deletion cannot be undone. Delete all saved user data, clear in-memory state, and leave no health-record recovery copy.
+
+Group Settings into backup, restore, deletion, privacy, and offline-use sections. Save a backup is the primary export action; CSV lives under Need a spreadsheet instead? Keep replace-only restore consequences visible before preview, and full privacy and update details available through labelled disclosures.
 
 ### Accessibility
 
