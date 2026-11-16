@@ -305,7 +305,7 @@ test('day editor works by keyboard, contains focus, and returns it on Escape and
   await expect(day(page, '2026-11-02')).toHaveAccessibleName(/Medium, period start/);
 });
 
-test('runtime requests contain only static assets, no health data or external resources', async ({ page }) => {
+test('runtime requests contain only static assets, no health data or external resources', async ({ page, baseURL }) => {
   const requests = [];
   const violations = [];
   const errors = [];
@@ -338,13 +338,13 @@ test('runtime requests contain only static assets, no health data or external re
   expect(violations).toEqual([]);
   for (const request of requests) {
     const url = new URL(request.url);
-    expect(url.origin).toBe('http://127.0.0.1:4173');
-    expect(url.pathname).toMatch(/^\/phase\/(?:index\.html|styles\.css|src\/(?:app|dates|records|storage|history)\.js)?$/);
+    expect(url.origin).toBe(new URL(baseURL).origin);
+    expect(url.pathname).toMatch(/^\/phase\/(?:index\.html|styles\.css|src\/(?:app|dates|records|storage|history|predictions)\.js)?$/);
     expect(url.search).toBe('');
     expect(url.hash).toBe('');
     expect(request.body).toBeNull();
   }
-  expect(page.url()).toBe('http://127.0.0.1:4173/phase/');
+  expect(page.url()).toBe(`${baseURL}/phase/`);
   expect(await page.evaluate(() => caches.keys())).toEqual([]);
 });
 

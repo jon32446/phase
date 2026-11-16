@@ -8,7 +8,8 @@ const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/cs
 const assets = new Map([
   ['index.html', '.html'], ['styles.css', '.css'],
   ['src/app.js', '.js'], ['src/dates.js', '.js'],
-  ['src/records.js', '.js'], ['src/storage.js', '.js'], ['src/history.js', '.js']
+  ['src/records.js', '.js'], ['src/storage.js', '.js'], ['src/history.js', '.js'],
+  ['src/predictions.js', '.js']
 ]);
 
 const server = createServer(async (request, response) => {

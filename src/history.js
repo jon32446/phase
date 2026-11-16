@@ -82,6 +82,18 @@ export function reviewNeedsAttention(review, starts) {
     JSON.stringify(review.starts) !== JSON.stringify(startsInSpan(starts, review));
 }
 
+export function summarizeIntervals(intervals) {
+  const usable = intervals.filter((interval) => ['provisional', 'complete'].includes(interval.status));
+  const lengths = usable.map((interval) => interval.days);
+  return {
+    count: usable.length,
+    confirmed: usable.filter((interval) => interval.status === 'complete').length,
+    provisional: usable.filter((interval) => interval.status === 'provisional').length,
+    min: lengths.length ? Math.min(...lengths) : null,
+    max: lengths.length ? Math.max(...lengths) : null
+  };
+}
+
 export function deriveHistory(records, reviews, today) {
   const starts = startDates(records);
   const intervals = starts.slice(1).map((end, index) => {
@@ -95,18 +107,10 @@ export function deriveHistory(records, reviews, today) {
         review.start <= span.start && review.end >= span.end)) status = 'complete';
     return { ...span, days: dayDifference(span.start, end), status };
   });
-  const usable = intervals.filter((interval) => ['provisional', 'complete'].includes(interval.status));
-  const lengths = usable.map((interval) => interval.days);
   return {
     starts,
     intervals,
     openSpan: starts.length && starts.at(-1) < today ? { start: starts.at(-1), end: today } : null,
-    summary: {
-      count: usable.length,
-      confirmed: usable.filter((interval) => interval.status === 'complete').length,
-      provisional: usable.filter((interval) => interval.status === 'provisional').length,
-      min: lengths.length ? Math.min(...lengths) : null,
-      max: lengths.length ? Math.max(...lengths) : null
-    }
+    summary: summarizeIntervals(intervals)
   };
 }

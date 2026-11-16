@@ -1,12 +1,14 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const baseURL = `http://127.0.0.1:${process.env.PORT ?? 4173}`;
+
 export default defineConfig({
   testDir: './tests/browser',
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL,
     locale: 'en-GB',
     timezoneId: 'Europe/Helsinki',
     trace: 'off',
@@ -19,7 +21,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'node tests/server.js',
-    url: 'http://127.0.0.1:4173',
+    url: baseURL,
     reuseExistingServer: false
   }
 });

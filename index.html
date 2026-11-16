@@ -31,7 +31,13 @@
     </div>
 
     <section id="calendar-page" aria-labelledby="month-heading">
-      <p class="notice">Record what you know; unlogged days stay unknown. Next-period estimates are not available in this version.</p>
+      <p>Record what you know; unlogged days stay unknown.</p>
+      <div id="forecast" class="notice" aria-live="polite">
+        <h3>Next-period estimate</h3>
+        <p id="estimate-text"></p>
+        <p id="estimate-method"></p>
+        <button id="view-checkins" type="button" hidden>View history</button>
+      </div>
       <div class="month-controls">
         <button id="previous-month" type="button" aria-label="Previous month">Previous</button>
         <h2 id="month-heading" aria-live="polite"></h2>
@@ -69,16 +75,19 @@
       <p>Recorded period starts, newest first. Select a date to correct its record.</p>
       <ul id="history"></ul>
       <p id="empty-history">No period starts recorded.</p>
+      <h3 id="checkins-heading" tabindex="-1">History check-ins</h3>
+      <p>These optional questions concern recorded starts, not medical normality. They never block logging. Dismissal is not confirmation and does not unlock an estimate. Dismissed and unsure spans are not prompted again unless their recorded starts change. After confirming an open span, another check-in waits at least seven days and still needs a duration trigger, or a limited-history explanation when a personal trigger cannot be calculated.</p>
+      <div id="history-checkins"></div>
+      <p id="empty-checkins">No automatic check-ins to show. Unresolved answers remain listed below.</p>
       <h3>Recorded intervals</h3>
       <p id="cycle-summary"></p>
       <p>These are gaps between recorded starts, not proof of complete cycles. Provisional intervals have no reported missing starts but are not confirmed complete. Sparse daily observations do not disqualify start history. Missing and unresolved intervals are excluded from the usable summary; confirmed long intervals keep their actual length.</p>
       <ul id="intervals" class="history-list"></ul>
       <div id="open-span"></div>
       <h3>History reviews</h3>
-      <p>Review manually when useful; no automatic missing-history detection is running. Answers concern period starts, not daily bleeding observations. Unsure answers stay unresolved without repeatedly opening a prompt. Closing a review without saving does not answer it.</p>
+      <p>Review manually whenever useful. Answers concern period starts, not daily bleeding observations. Unsure answers stay unresolved without repeatedly opening a dialog. Closing a review without saving does not answer it.</p>
       <ul id="history-reviews" class="history-list"></ul>
       <p id="empty-reviews">No history reviews saved.</p>
-      <p class="notice">Next-period estimates and automatic check-ins are not available yet.</p>
     </section>
 
     <section id="settings-page" aria-labelledby="settings-heading" hidden>

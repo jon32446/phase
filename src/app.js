@@ -2,13 +2,15 @@ import { dateLabel, localToday, monthDays, monthLabel, parseDate, shiftMonth } f
 import { BLEEDING_LABELS, supportsStart } from './records.js';
 import { openStorage } from './storage.js';
 import {
-  deriveHistory, expandReviewSpan, overlaps, REVIEW_LABELS, reviewNeedsAttention, startDates
+  expandReviewSpan, overlaps, REVIEW_LABELS, reviewNeedsAttention, startDates
 } from './history.js';
+import { deriveInsights } from './predictions.js';
 
 const $ = (id) => document.getElementById(id);
 const symbols = { none: '0', spotting: 'S', light: 'L', medium: 'M', heavy: 'H' };
 let records = new Map();
 let reviews = [];
+let dismissals = [];
 let storage;
 let month = localToday().slice(0, 7);
 let selectedDate;
@@ -25,6 +27,7 @@ let pendingBulk;
 let bulkReturnAction;
 let pendingReview;
 let reviewReturnSpan;
+let reviewReturnSection;
 
 function announce(message) {
   $('status').textContent = message;
@@ -99,7 +102,10 @@ function renderHistory() {
   }
   $('history').replaceChildren(fragment);
   $('empty-history').hidden = starts.length > 0;
-  const history = deriveHistory([...records.values()], reviews, localToday());
+  const insights = deriveInsights([...records.values()], reviews, dismissals, localToday());
+  const { history } = insights;
+  renderForecast(insights.forecast);
+  renderCheckins(insights.checkins);
   const { summary } = history;
   $('cycle-summary').textContent = summary.count ?
     `${summary.count} usable recorded ${summary.count === 1 ? 'interval' : 'intervals'}: ${summary.confirmed} confirmed complete, ${summary.provisional} provisional. Length range: ${summary.min}-${summary.max} days.` :
@@ -139,6 +145,62 @@ function renderHistory() {
   $('empty-reviews').hidden = reviews.length > 0;
 }
 
+function renderForecast(forecast) {
+  $('forecast').dataset.state = forecast.status;
+  $('estimate-text').textContent = ['available', 'passed'].includes(forecast.status) ?
+    `${forecast.status === 'passed' ? 'Estimated window has passed' : 'Estimated next-period range'}: ${forecast.start} to ${forecast.end}.` :
+    `Estimate ${forecast.status === 'blocked' ? 'withheld' : 'unavailable'}. ${forecast.reason}`;
+  $('estimate-method').textContent = ['available', 'passed'].includes(forecast.status) ?
+    `Based on ${forecast.sampleCount} usable intervals among the latest six, including ${forecast.provisionalCount} provisional. Shortest to longest length, padded by two days on each side; earliest is at least one day after the latest start. This is an uncalibrated estimate, not a guarantee or contraception guidance. The window does not move forward when it passes.` :
+    'Estimates need at least three eligible intervals among the latest six. Relevant unresolved history withholds an estimate; known-missing completed intervals are excluded. This is not medical or contraception guidance.';
+  $('view-checkins').hidden = !['blocked', 'insufficient'].includes(forecast.status);
+  $('view-checkins').disabled = busy || !storage;
+}
+
+function renderCheckins(checkins) {
+  const fragment = document.createDocumentFragment();
+  for (const check of checkins) {
+    const card = document.createElement('div');
+    card.className = 'checkin-card';
+    card.dataset.checkinId = check.id;
+    card.dataset.reason = check.reason;
+    const heading = document.createElement('h4');
+    heading.textContent = `Check start history: ${check.start} through ${check.end}`;
+    const text = document.createElement('p');
+    if (check.reason === 'changed') {
+      text.textContent = 'Recorded starts changed in a reviewed span. Your earlier answer needs another look; this does not establish that any starts are missing.';
+    } else if (check.reason === 'long') {
+      text.textContent = `A recorded span of ${check.comparison.days} days prompted this review. The review trigger is over ${check.comparison.threshold} days: 1.5 times the median of ${check.comparison.count} other usable intervals. Are all starts recorded? This is a question about record completeness, not a medical cutoff or evidence that a period occurred.`;
+    } else {
+      text.textContent = 'There are fewer than three other usable intervals for a personal gap check. You can review what you remember; no population-based duration cutoff has been applied and no missing start is assumed.';
+    }
+    const dismiss = document.createElement('button');
+    dismiss.type = 'button';
+    dismiss.textContent = 'Dismiss check-in';
+    dismiss.disabled = busy || !storage;
+    dismiss.addEventListener('click', () => dismissCheckin(check));
+    card.append(heading, text, reviewButton(check, 'Review history'), dismiss);
+    fragment.append(card);
+  }
+  $('history-checkins').replaceChildren(fragment);
+  $('empty-checkins').hidden = checkins.length > 0;
+}
+
+async function dismissCheckin(check) {
+  if (!storage || busy || editing) return;
+  editorRequest++;
+  setBusy(true);
+  try {
+    applyState(await storage.dismissCheckin(check));
+    announce(`Check-in dismissed. No completeness answer was recorded; unresolved history still affects estimates.${undo ? ' Your previous Undo is unchanged.' : ''}`);
+  } catch (error) {
+    announce(`${error.message}${error.code === 'STALE_RECORD' ? ' Reload to refresh this check-in.' : ''}`);
+  } finally {
+    setBusy(false);
+    ($('history-checkins').querySelector('button') ?? $('history-heading')).focus();
+  }
+}
+
 function reviewDescription(review, starts) {
   return `${REVIEW_LABELS[review.answer]}${reviewNeedsAttention(review, starts) ? '; needs review because recorded starts changed' : ''}${review.missingUnresolved && review.answer !== 'missing' ? '; previously reported missing starts remain unresolved' : ''}`;
 }
@@ -149,7 +211,7 @@ function reviewButton(span, action) {
   button.dataset.span = `${span.start}/${span.end}`;
   button.textContent = `${action} ${span.start} to ${span.end}`;
   button.disabled = !storage || busy;
-  button.addEventListener('click', () => openReview(span));
+  button.addEventListener('click', () => openReview(span, button.closest('[id]').id));
   return button;
 }
 
@@ -161,6 +223,7 @@ function renderRecords() {
 function applyState(state) {
   records = new Map(state.records.map((record) => [record.date, record]));
   reviews = state.reviews;
+  dismissals = state.dismissals;
   renderRecords();
 }
 
@@ -213,6 +276,7 @@ function setBusy(value) {
   }
   if (!value) $('clear-day').disabled = original == null;
   $('undo').disabled = value;
+  $('view-checkins').disabled = value || !storage;
   for (const button of document.querySelectorAll('nav button')) button.disabled = value;
   for (const button of $('calendar').querySelectorAll('button')) {
     button.disabled = value || button.dataset.date > localToday();
@@ -299,7 +363,7 @@ function updateReviewControls() {
   $('remove-review').disabled = busy || !pendingReview?.replaced.length || !approval;
 }
 
-async function openReview(requested) {
+async function openReview(requested, section) {
   if (!storage || busy || editing) return;
   const requestId = ++editorRequest;
   try {
@@ -311,6 +375,7 @@ async function openReview(requested) {
     const starts = startDates(state.records);
     pendingReview = { span, replaced, expected: state };
     reviewReturnSpan = `${requested.start}/${requested.end}`;
+    reviewReturnSection = section;
     $('review-heading').textContent = `Review ${span.start} through ${span.end}`;
     $('review-boundaries').textContent = span.start !== requested.start || span.end !== requested.end ?
       'This review includes the full span of overlapping answers. Saving replaces all answers listed below, not just the originally selected interval.' :
@@ -351,7 +416,7 @@ $('cancel-review').addEventListener('click', () => {
 $('review-editor').addEventListener('close', () => {
   editing = false;
   pendingReview = undefined;
-  const target = [...$('history-page').querySelectorAll('button[data-span]')]
+  const target = [...$(reviewReturnSection).querySelectorAll('button[data-span]')]
     .find((button) => button.dataset.span === reviewReturnSpan);
   (target ?? $('history-heading')).focus();
 });
@@ -416,7 +481,8 @@ function offerUndo(result) {
   const changes = result.changes.filter((change) => change.changed);
   undo = {
     changes, reviewChanges: result.reviewChanges,
-    reviewGuards: result.reviewGuards, startGuards: result.startGuards
+    reviewGuards: result.reviewGuards, startGuards: result.startGuards,
+    dismissalChanges: result.dismissalChanges
   };
   $('undo-description').textContent = changes.length === 0 ? 'Changed history review.' : changes.length === 1 ?
     `Changed ${dateLabel(changes[0].date)}.` : `Changed ${changes.length} days.`;
@@ -671,17 +737,23 @@ for (const button of document.querySelectorAll('nav [data-page]')) {
       else navButton.removeAttribute('aria-current');
       $(`${navButton.dataset.page}-page`).hidden = navButton !== button;
     }
+    renderRecords();
   });
 }
+$('view-checkins').addEventListener('click', () => {
+  if (busy) return;
+  document.querySelector('nav [data-page="history"]').click();
+  $('checkins-heading').focus();
+});
 for (const [id, amount] of [['previous-month', -1], ['next-month', 1]]) {
   $(id).addEventListener('click', () => {
     month = shiftMonth(month, amount);
-    renderCalendar();
+    renderRecords();
   });
 }
 $('today').addEventListener('click', () => {
   month = localToday().slice(0, 7);
-  renderCalendar();
+  renderRecords();
   $('calendar').querySelector('[aria-current="date"]')?.focus();
 });
 

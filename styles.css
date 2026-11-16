@@ -60,6 +60,10 @@ p { line-height: 1.5; }
 .history-list p { margin-bottom: .4rem; }
 .history-list button { max-width: 100%; }
 #review-add-date { display: block; min-height: 44px; max-width: 100%; margin: .4rem 0 .8rem; }
+.checkin-card { border: 1px solid #796d80; border-radius: 6px; padding: .8rem; margin-bottom: .8rem; }
+.checkin-card h4 { margin: 0; }
+.checkin-card button { max-width: 100%; margin: .3rem .3rem .3rem 0; }
+#forecast h3 { margin-top: 0; }
 .skip-link { position: absolute; top: -100px; left: 1rem; padding: .8rem; background: white; z-index: 2; }
 .skip-link:focus { top: .5rem; }
 dialog { width: min(94vw, 480px); max-height: 90dvh; overflow: auto; border: 1px solid #796d80; border-radius: 10px; padding: 1.3rem; }

@@ -31,6 +31,13 @@ export function dayDifference(start, end) {
   return (parseDate(end).getTime() - parseDate(start).getTime()) / DAY_MS;
 }
 
+export function addDays(value, amount) {
+  if (!Number.isInteger(amount)) throw new TypeError('Use a whole number of calendar days.');
+  const date = parseDate(value);
+  date.setUTCDate(date.getUTCDate() + amount);
+  return formatDate(date);
+}
+
 export function monthDays(month) {
   const first = parseDate(`${month}-01`);
   const cursor = new Date(first);

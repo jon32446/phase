@@ -9,7 +9,8 @@ async function state(page) {
     const { openStorage } = await import(new URL('src/storage.js', location.href));
     const storage = await openStorage();
     try {
-      return await storage.readState();
+      const { records, reviews } = await storage.readState();
+      return { records, reviews };
     } finally {
       storage.db.close();
     }
@@ -332,7 +333,7 @@ test('version-one storage migrates without losing observations or period starts'
     const version = storage.db.version;
     storage.db.close();
     return version;
-  })).toBe(2);
+  })).toBe(3);
 });
 
 test('review dialog supports keyboard focus, touch-sized layout, and no-change saves preserve Undo', async ({ page }) => {

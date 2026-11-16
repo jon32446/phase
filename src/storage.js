@@ -4,9 +4,10 @@ import {
   containsDate, expandReviewSpan, overlaps, sameReview, sameReviews,
   startDates, startsInSpan, validateReview
 } from './history.js';
+import { deriveInsights, sameDismissal, validateDismissal } from './predictions.js';
 
 export const DATABASE_NAME = 'phase-diary';
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 function storageError(error) {
   if (error?.name === 'QuotaExceededError') {
@@ -41,6 +42,7 @@ export function openStorage(factory = globalThis.indexedDB) {
         db.createObjectStore('metadata', { keyPath: 'key' });
       }
       if (event.oldVersion < 2) db.createObjectStore('reviews', { keyPath: 'id' });
+      if (event.oldVersion < 3) db.createObjectStore('dismissals', { keyPath: 'id' });
       request.transaction.objectStore('metadata').put({ key: 'schemaVersion', value: SCHEMA_VERSION });
     };
     request.onsuccess = () => {
@@ -93,17 +95,22 @@ class DiaryStorage {
       let transaction;
       let days;
       let reviews;
+      let dismissals;
       try {
-        transaction = this.db.transaction(['days', 'reviews'], 'readonly');
+        transaction = this.db.transaction(['days', 'reviews', 'dismissals'], 'readonly');
         days = transaction.objectStore('days').getAll();
         reviews = transaction.objectStore('reviews').getAll();
+        dismissals = transaction.objectStore('dismissals').getAll();
       } catch (error) {
         reject(storageError(error));
         return;
       }
       transaction.oncomplete = () => {
         try {
-          resolve({ records: days.result.map(validateRecord), reviews: reviews.result.map(validateReview) });
+          resolve({
+            records: days.result.map(validateRecord), reviews: reviews.result.map(validateReview),
+            dismissals: dismissals.result.map(validateDismissal)
+          });
         } catch (error) {
           reject(new Error('Saved history could not be read safely. No records were changed.', { cause: error }));
         }
@@ -120,6 +127,10 @@ class DiaryStorage {
     return this.commit({ reviewEdit: { span, answer, expected } });
   }
 
+  dismissCheckin(check) {
+    return this.commit({ dismissCheck: validateDismissal(check) });
+  }
+
   restore(change) {
     return this.commit({
       edits: change.changes.map((item) => ({
@@ -129,7 +140,7 @@ class DiaryStorage {
     });
   }
 
-  commit({ edits = [], reviewEdit, restore }) {
+  commit({ edits = [], reviewEdit, restore, dismissCheck }) {
     const dates = new Set();
     const today = localToday();
     const changes = edits.map(({ date, next, expected }) => {
@@ -149,18 +160,21 @@ class DiaryStorage {
       let failure;
       let result;
       try {
-        transaction = this.db.transaction(['days', 'reviews'], 'readwrite');
+        transaction = this.db.transaction(['days', 'reviews', 'dismissals'], 'readwrite');
         const store = transaction.objectStore('days');
         const reviewStore = transaction.objectStore('reviews');
         const daysRequest = store.getAll();
         const reviewsRequest = reviewStore.getAll();
-        reviewsRequest.onsuccess = () => {
+        const dismissalStore = transaction.objectStore('dismissals');
+        const dismissalsRequest = dismissalStore.getAll();
+        dismissalsRequest.onsuccess = () => {
           try {
             const days = new Map(daysRequest.result.map((record) => {
               const valid = validateRecord(record);
               return [valid.date, valid];
             }));
             const reviews = reviewsRequest.result.map(validateReview);
+            const dismissals = dismissalsRequest.result.map(validateDismissal);
             const starts = startDates([...days.values()]);
             const stale = () => {
               throw Object.assign(new Error(
@@ -224,6 +238,31 @@ class DiaryStorage {
               const next = nextReviews.find((review) => review.id === id) ?? null;
               if (!sameReview(previous, next)) reviewChanges.push({ id, previous, next });
             }
+            const currentContext = (dismissal) =>
+              JSON.stringify(dismissal.starts) === JSON.stringify(startsInSpan(nextStarts, dismissal)) &&
+              (dismissal.anchor === null || dismissal.anchor === nextStarts.at(-1));
+            let nextDismissals = dismissals.filter((dismissal) => currentContext(dismissal) &&
+              !reviewChanges.some((change) => overlaps(dismissal, change.previous ?? change.next)));
+            if (restore) {
+              for (const change of restore.dismissalChanges) {
+                if (!change.previous || !currentContext(change.previous)) continue;
+                nextDismissals = nextDismissals.filter((dismissal) => dismissal.id !== change.id);
+                nextDismissals.push(change.previous);
+              }
+            }
+            if (dismissCheck) {
+              const current = deriveInsights([...days.values()], reviews, dismissals, today).checkins
+                .find((check) => check.id === dismissCheck.id);
+              if (!current || !sameDismissal(validateDismissal(current), dismissCheck)) stale();
+              nextDismissals = nextDismissals.filter((dismissal) => dismissal.id !== dismissCheck.id);
+              nextDismissals.push(dismissCheck);
+            }
+            const dismissalChanges = [];
+            for (const id of new Set([...dismissals, ...nextDismissals].map((dismissal) => dismissal.id))) {
+              const previous = dismissals.find((dismissal) => dismissal.id === id) ?? null;
+              const next = nextDismissals.find((dismissal) => dismissal.id === id) ?? null;
+              if (!sameDismissal(previous, next)) dismissalChanges.push({ id, previous, next });
+            }
             for (const item of changed) {
               if (item.next) {
                 store.put(item.next);
@@ -237,8 +276,13 @@ class DiaryStorage {
               if (change.next) reviewStore.put(change.next);
               else reviewStore.delete(change.id);
             }
+            for (const change of dismissalChanges) {
+              if (change.next) dismissalStore.put(change.next);
+              else dismissalStore.delete(change.id);
+            }
             result = {
-              changes, reviewChanges, records: [...days.values()], reviews: nextReviews,
+              changes, reviewChanges, dismissalChanges,
+              records: [...days.values()], reviews: nextReviews, dismissals: nextDismissals,
               reviewGuards: nextReviews.filter((review) => affected(review, reviewChanges)),
               startGuards: reviewChanges.map((change) => {
                 const span = change.previous ?? change.next;

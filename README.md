@@ -8,13 +8,15 @@ Record and correct your history without accounts, data harvesting or cloud sync.
 
 The diary supports a mobile-first monthly calendar, historical single-day and cross-month bulk editing, explicit period starts, browser-local storage, and one-step, memory-only Undo for the last changed edit, batch, or history-review answer. Undo remains available until the next successful changed edit or reload; navigation, elapsed time, cancelled edits, failed saves, and unchanged saves do not replace it.
 
-History lists editable starts, derived start-to-start intervals, descriptive length ranges, and manual start-history completeness reviews. Reviews distinguish all starts recorded, known missing starts with forgotten dates, and uncertainty without changing daily observations. Start corrections mark affected answers as needing review; Undo restores the correction and its review effects together.
+History lists editable starts, derived start-to-start intervals, descriptive length ranges, and start-history completeness reviews. Non-blocking check-ins ask about potentially missing history without inventing dates or assuming that a period occurred. Reviews distinguish all starts recorded, known missing starts with forgotten dates, and uncertainty without changing daily observations. Start corrections mark affected answers as needing review; Undo restores the correction and its review effects together. A stale answer can make even short intervals unresolved: use the affected span's Review or Change review button, choose an answer from Start-history completeness, and explicitly approve replacing the earlier answer before saving.
 
-Automatic missing-history detection and check-ins, next-period estimates, import/export, in-app complete deletion, and offline/PWA support are not implemented yet. **Do not rely on this development version as your only record:** browser storage can be lost, and backup export is not available.
+The Calendar shows a cautious next-period range when at least three eligible intervals exist among the latest six. It uses their shortest and longest lengths, padded by two days on each side, with the earliest date at least one day after the latest start. The sample count and provisional-history caveat are shown. Relevant unresolved history withholds an estimate; known-missing completed intervals are excluded, and confirmed long intervals remain included. A passed window is labelled as passed rather than moved forward. These are engineering heuristics, not calibrated confidence bounds, medical advice, or contraception guidance.
+
+Import/export, in-app complete deletion, and offline/PWA support are not implemented yet. **Do not rely on this development version as your only record:** browser storage can be lost, and backup export is not available.
 
 Daily bleeding observations are separate from whether all period starts are recorded. Daily logging is not required: an unrecorded day is not an observation of "none", and a long interval is not automatically invalid. The usable-interval summary includes confirmed complete intervals and provisional intervals without reported missing starts or unresolved reviews; it labels those counts separately. Missing and unresolved intervals are excluded, and confirmed complete long intervals retain their actual length. These are descriptive summaries, not forecasts or medical assessments.
 
-Reviews cover fixed dates and do not extend automatically. Re-reviewing overlapping answers explicitly replaces their whole covered span. Adding a remembered start does not by itself resolve a missing-start report; an unsure answer preserves that warning until explicitly resolved or removed. Automatic prompting and prediction rules are still being designed.
+Reviews cover fixed dates and do not extend automatically. Re-reviewing overlapping answers explicitly replaces their whole covered span. Adding a remembered start does not by itself resolve a missing-start report; an unsure answer preserves that warning until explicitly resolved or removed. Gap checks use a personal median only when at least three other usable intervals exist; otherwise they explain limited history without applying a population-based duration cutoff. Dismissal is not confirmation and does not unlock a forecast. Dismissed and unsure spans are not prompted again unless their recorded starts change; a confirmed open span has a seven-day minimum before another automatic check-in.
 
 [PLAN.md](PLAN.md) defines first-release behaviour, remaining decisions, and acceptance criteria. [TODO.md](TODO.md) lists optional later ideas, not release requirements.
 
@@ -66,7 +68,7 @@ npm test
 npm run check
 ```
 
-`npm test` runs Node unit tests and Playwright browser tests; `npm run check` checks JavaScript syntax. Use `npm run test:unit` or `npm run test:browser` to run a suite separately. Browser tests start their own local server on port 4173, so stop `npm start` before running them.
+`npm test` runs Node unit tests and Playwright browser tests; `npm run check` checks JavaScript syntax. Use `npm run test:unit` or `npm run test:browser` to run a suite separately. Browser tests start their own local server on port 4173 by default, so stop `npm start` before running them or set the `PORT` environment variable to an unused port for the test command.
 
 Browser coverage uses desktop Chromium and mobile Chromium emulation, not real mobile devices or other browser engines. Use synthetic health data in all tests and examples.
 
