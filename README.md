@@ -18,13 +18,13 @@ The Calendar shows a cautious next-period range when at least three eligible int
 
 Settings supports complete JSON backup/replace-only restore, daily-observation CSV export, and explicitly confirmed complete deletion. Restores are validated before preview and commit atomically; invalid files or failed writes leave existing data intact. Restore and deletion clear session Undo only after success.
 
-Phase supports offline loading after its application files have successfully cached, and installation through supporting browsers. Updates download in the background and offer an explicit **Restart to update** action. **Do not rely on browser storage as your only record:** it can be lost. Keep your own unencrypted JSON backups somewhere secure. Release-wide accessibility verification is still outstanding.
+Phase supports offline loading after its application files have successfully cached, and installation through supporting browsers. Updates download in the background and offer an explicit **Restart to update** action. **Do not rely on browser storage as your only record:** it can be lost. Keep your own unencrypted JSON backups somewhere secure.
 
 Daily bleeding observations are separate from whether all period starts are recorded. Daily logging is not required: an unrecorded day is not an observation of "none", and a long interval is not automatically invalid. The usable-interval summary includes confirmed complete intervals and provisional intervals without reported missing starts or unresolved reviews; it labels those counts separately. Missing and unresolved intervals are excluded, and confirmed complete long intervals retain their actual length. These are descriptive summaries, not forecasts or medical assessments.
 
 Reviews cover fixed dates and do not extend automatically. Re-reviewing overlapping answers explicitly replaces their whole covered span. Adding a remembered start does not by itself resolve a missing-start report; an unsure answer preserves that warning until explicitly resolved or removed. Gap checks use a personal median only when at least three other usable intervals exist; otherwise they explain limited history without applying a population-based duration cutoff. Dismissal is not confirmation and does not unlock a forecast. Dismissed and unsure spans are not prompted again unless their recorded starts change; a confirmed open span has a seven-day minimum before another automatic check-in.
 
-[PLAN.md](PLAN.md) defines first-release behaviour, remaining decisions, and acceptance criteria. [TODO.md](TODO.md) lists optional later ideas, not release requirements.
+[PLAN.md](PLAN.md) defines first-release behaviour, approved decisions, and acceptance criteria. [TODO.md](TODO.md) lists optional later ideas, not release requirements.
 
 ## Privacy promise
 
@@ -98,7 +98,7 @@ npm run check
 
 `npm test` runs Node unit tests and Playwright browser tests; `npm run check` checks JavaScript syntax. Use `npm run test:unit` or `npm run test:browser` to run a suite separately. Browser tests start their own local server on port 4173 by default, so stop `npm start` before running them or set the `PORT` environment variable to an unused port for the test command.
 
-Browser coverage uses desktop Chromium and mobile Chromium emulation, not real mobile devices or other browser engines. Use synthetic health data in all tests and examples.
+Browser coverage uses desktop Chromium and mobile Chromium emulation, not real mobile devices or other browser engines. Accessibility regression tests cover core keyboard journeys, focus return and visibility around fixed controls, touch-target sizes, supporting-text contrast, and 200% text at a 320px viewport. Interactive Playwright screenshot inspection supplements those assertions. Real-device and screen-reader usability are best-effort follow-up work; these checks do not establish formal accessibility conformance. Use synthetic health data in all tests and examples.
 
 ## License
 

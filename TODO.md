@@ -2,7 +2,7 @@
 
 These are optional ideas, not commitments or first-release requirements.
 
-The current diary includes a calendar-first layout with quick daily and historical editing, labelled graphical flow choices, cross-month bulk editing with direct conflict-free actions, explicit starts, descriptive interval history, start-history reviews and automatic check-ins, cautious next-period ranges, one-step session-only Undo for edits, batches, and review answers, complete JSON backup/replace-only restore, daily-observation CSV export, confirmed complete deletion, and an offline/installable shell with explicit restart-to-update. These later ideas remain outside those capabilities and do not replace the remaining first-release work in PLAN.md.
+The current diary includes a calendar-first layout with quick daily and historical editing, labelled graphical flow choices, cross-month bulk editing with direct conflict-free actions, explicit starts, descriptive interval history, start-history reviews and automatic check-ins, cautious next-period ranges, one-step session-only Undo for edits, batches, and review answers, complete JSON backup/replace-only restore, daily-observation CSV export, confirmed complete deletion, and an offline/installable shell with explicit restart-to-update. These later ideas are outside the completed first-release scope documented in PLAN.md.
 
 - [ ] Improve origin isolation, for example by hosting Phase on a dedicated origin rather than alongside other apps on `username.github.io`. Moving origins requires an explicit export/import migration because browser storage does not move with the site.
 
@@ -26,7 +26,7 @@ The current diary includes a calendar-first layout with quick daily and historic
 
 - [ ] Add localisation without remote translation services or runtime assets.
 
-- [ ] Broaden browser testing to Firefox, WebKit, and real mobile devices after agreeing on the necessary tooling and downloads.
+- [ ] Broaden browser testing to Firefox, WebKit, and real mobile devices, and supplement the Chromium accessibility checks with screen-reader walkthroughs. Real-device and screen-reader usability remain best-effort follow-up work. Agree on any necessary tooling and downloads first.
 
 - [ ] Improve backup reminders and browser-storage persistence handling without suggesting that either guarantees recovery.
 

@@ -103,6 +103,8 @@ Group Settings into backup, restore, deletion, privacy, and offline-use sections
 
 All interactions must work with touch, mouse, and keyboard. Dates and values need accessible names, visible focus, and non-colour indicators. Manage focus when opening/closing editors, announce selection counts and save outcomes, and provide clear storage/import error messages.
 
+Agreed first-release verification scope: combine automated Chromium keyboard and touch-emulation regression tests with interactive Playwright screenshot inspection. Check core workflows, focus visibility and return, accessible names and announcements, touch targets, text contrast, narrow layouts, and 200% text reflow. Real-device and screen-reader usability are best-effort follow-up work rather than release gates. This scope does not establish cross-browser usability or formal accessibility conformance.
+
 ## Data and calculations
 
 ### Mutable storage
@@ -188,7 +190,7 @@ Use a restrictive Content Security Policy compatible with the static/offline des
 5. Add validated backup/restore, CSV export, and complete deletion.
 6. Add offline assets, update behaviour, accessibility checks, and Pages-path validation; review README claims against actual behaviour.
 
-Steps 1-5 are implemented: the diary, derived interval history, descriptive usable-length summaries, fixed-span reviews, automatic history check-ins, cautious next-period ranges, complete JSON backup/replace-only restore, observation CSV export, and confirmed complete deletion follow the agreed policies above. Reviewed history and dismissal preferences use versioned mutable storage with transactional correction effects and one-step session-only Undo. Restore/deletion use atomic writes, stale-preview checks, and successful-operation memory cleanup. Step 6's offline/installable shell and explicit update interaction are implemented alongside existing root/subpath hosting and CSP checks. Remaining first-release work is release-wide accessibility verification and final capability/privacy claims sign-off. The acceptance checklist below tracks release-wide completion.
+Steps 1-5 are implemented: the diary, derived interval history, descriptive usable-length summaries, fixed-span reviews, automatic history check-ins, cautious next-period ranges, complete JSON backup/replace-only restore, observation CSV export, and confirmed complete deletion follow the agreed policies above. Reviewed history and dismissal preferences use versioned mutable storage with transactional correction effects and one-step session-only Undo. Restore/deletion use atomic writes, stale-preview checks, and successful-operation memory cleanup. Step 6's offline/installable shell, explicit update interaction, root/subpath hosting, CSP checks, and scoped accessibility verification are complete. README capability and privacy statements reflect the application and its testing limitations. Real-device, screen-reader, and additional browser-engine checks remain follow-up work within the scope described above.
 
 ## Validation and tooling
 
@@ -213,11 +215,11 @@ Run browser tests against a local static server at both the root and a repositor
 - [x] Invalid imports and failed saves leave existing data intact.
 - [x] CSV export preserves dates and values in a documented format.
 - [x] Delete all data survives reload, clears Undo, and works without a network once the page is loaded.
-- [ ] Core workflows work with keyboard and touch-sized controls.
+- [x] Core workflows work with keyboard and touch-sized controls within the agreed Chromium verification scope.
 - [x] Browser tests detect unexpected external requests or health data in URLs.
 - [x] Offline operation and asset updates never cache health records.
 - [x] Root and repository-subpath hosting both work.
-- [ ] README privacy and capability statements match the shipped application.
+- [x] README privacy and capability statements match the shipped application.
 
 ## Decisions to resolve before dependent implementation
 

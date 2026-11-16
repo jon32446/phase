@@ -9,6 +9,22 @@ import { createBackup, createCSV, parseBackup } from './backup.js';
 import { setupOffline } from './offline.js';
 
 const $ = (id) => document.getElementById(id);
+// Keep native keyboard scrolling clear of fixed controls and notifications.
+function updateScrollPadding() {
+  const navigation = document.querySelector('nav');
+  const navigationHeight = getComputedStyle(navigation).position === 'fixed' ? navigation.getBoundingClientRect().height : 0;
+  document.documentElement.style.setProperty('--navigation-height', `${Math.ceil(navigationHeight)}px`);
+  const overlays = document.querySelectorAll('nav, .feedback, #selection-bar');
+  const bottom = Math.max(0, ...[...overlays].map((element) => {
+    const box = element.getBoundingClientRect();
+    return box.height && getComputedStyle(element).position === 'fixed' ? innerHeight - box.top : 0;
+  }));
+  document.documentElement.style.setProperty('--bottom-overlay', `${Math.ceil(bottom)}px`);
+}
+const overlayObserver = new ResizeObserver(updateScrollPadding);
+for (const element of document.querySelectorAll('nav, .feedback, #selection-bar')) overlayObserver.observe(element);
+window.addEventListener('resize', updateScrollPadding);
+
 const diaryDates = new Intl.DateTimeFormat(undefined, {
   day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC'
 });
@@ -344,6 +360,7 @@ function updateSelectionControls() {
   }
   $('cancel-selection').disabled = busy;
   $('refresh-records').disabled = busy;
+  updateScrollPadding();
 }
 
 function clearSelectionError() {
@@ -957,6 +974,7 @@ function download(text, type, filename) {
 for (const kind of ['json', 'csv']) {
   $(`export-${kind}`).addEventListener('click', async () => {
     if (!storage || busy || editing) return;
+    const hadFocus = document.activeElement === $(`export-${kind}`);
     setBusy(true);
     $('settings-error').hidden = true;
     try {
@@ -969,6 +987,7 @@ for (const kind of ['json', 'csv']) {
       settingsError(error);
     } finally {
       setBusy(false);
+      if (hadFocus) $(`export-${kind}`).focus();
     }
   });
 }
