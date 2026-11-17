@@ -12,7 +12,7 @@ The current diary includes a calendar-first layout with quick daily and historic
 
 - [ ] Measure prediction accuracy using saved forecasts or clearly labelled walk-forward backtests. Report sample count, date error, and estimated-window coverage without using future information.
 
-- [ ] Explore better-calibrated period estimates when suitable evaluation data exists. Retain transparent baselines and explanations for withheld estimates.
+- [x] Explore better-calibrated period estimates when suitable evaluation data exists. Retain transparent baselines and explanations for withheld estimates.
 
 - [ ] Add symptom patterns by relative cycle day only when there are enough observations to make the display useful.
 
