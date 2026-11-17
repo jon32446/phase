@@ -18,11 +18,44 @@ Phase cannot diagnose health conditions. Do not rely on its estimates for contra
 
 Open Phase in your browser and choose **Log today**, or tap a past date. Check **Settings > Here, even offline** to confirm offline setup has finished.
 
-To install, use **Install app** or **Add to Home screen** in your browser's menu. On iPhone, open Phase in Safari and choose **Share > Add to Home Screen**. You can also keep using it in a browser.
-
 The [diary guide](docs/diary-guide.md) explains editing, history, estimates, backups, and updates.
 
-## Your data
+Installation adds Phase to your home screen, Dock, or applications so you can open it like an app. It is optional. You can keep using Phase in your browser. Menu names and locations vary by browser version.
+
+### iPhone or iPad (Safari)
+
+1. Open [Phase](https://jon32446.github.io/phase/) in Safari.
+2. Tap **Share** (the square with an upward arrow). On iPhone, you may need to open **More** first. On iPad, tap **View More** if shown.
+3. Choose **Add to Home Screen**. On iPhone, if it is missing, scroll to **Edit Actions** and add it.
+4. Leave **Open as Web App** turned on, or turn it on if needed. Older versions may not show this option.
+5. Tap **Add**, then open Phase using its home-screen icon.
+
+### Android (Chrome)
+
+1. Open [Phase](https://jon32446.github.io/phase/) in Chrome.
+2. Open the three-dot menu beside the address bar.
+3. Choose **Install and create shortcut > Install**. Other versions may show **Install app** or **Add to Home screen**.
+4. Follow the prompts to confirm, then open Phase from your home screen or app drawer.
+
+### Windows, macOS, or Linux (Chrome or Edge)
+
+1. Open [Phase](https://jon32446.github.io/phase/) in Chrome or Edge.
+2. Click the install icon in the address bar if shown. In Chrome, you can also use the three-dot menu and choose **Cast, save, and share > Install page as app...**. In Edge, use **Settings and more > More tools > Apps > Install this site as an app**. Some Edge versions place **Apps** directly in the main menu.
+3. Confirm installation. Phase opens in its own window and is available from your applications or app launcher.
+
+### Mac (Safari)
+
+Requires macOS Sonoma 14 or later.
+
+1. Open [Phase](https://jon32446.github.io/phase/) in Safari.
+2. Choose **File > Add to Dock**, or **Share > Add to Dock**.
+3. Click **Add**, then open Phase from the Dock or your Applications folder.
+
+### Changing device
+
+If you already have diary entries, save a JSON backup before switching browsers or opening an installed app for the first time. If your diary is empty there, restore your backup using **Settings > Preview restore**.
+
+## Privacy
 
 Your cycle records stay in your browser on your device. Phase does not send them to anyone. There are no accounts, analytics, advertising, tracking, cloud sync, or third-party runtime resources. You can edit, export, or delete your records at any time.
 
